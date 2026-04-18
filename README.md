@@ -1,4 +1,4 @@
-# SDP Kubernetes lab (Lima + Argo CD)
+# Kubernetes lab (Lima + Argo CD)
 
 This lab is intentionally split into two parts:
 
@@ -38,20 +38,20 @@ chmod +x bootstrap-cluster.sh
 In a separate terminal:
 
 ```bash
-ssh -F "$HOME/.lima/sdp-lab/ssh.config" -N -L 6443:127.0.0.1:6443 lima-sdp-lab
+ssh -F "$HOME/.lima/k8s-lab/ssh.config" -N -L 6443:127.0.0.1:6443 lima-k8s-lab
 ```
 
 Then:
 
 ```bash
-export KUBECONFIG="$HOME/.kube/lima-sdp-lab"
+export KUBECONFIG="$HOME/.kube/lima-k8s-lab"
 kubectl get nodes
 ```
 
 ### 3) (Optional) Argo CD UI
 
 ```bash
-export KUBECONFIG="$HOME/.kube/lima-sdp-lab"
+export KUBECONFIG="$HOME/.kube/lima-k8s-lab"
 kubectl -n argocd port-forward svc/argocd-server 8080:443
 ```
 
@@ -60,7 +60,7 @@ Open `https://localhost:8080`.
 Get the initial admin password:
 
 ```bash
-export KUBECONFIG="$HOME/.kube/lima-sdp-lab"
+export KUBECONFIG="$HOME/.kube/lima-k8s-lab"
 kubectl -n argocd get secret argocd-initial-admin-secret \
   -o jsonpath="{.data.password}" | base64 --decode
 
@@ -82,7 +82,7 @@ cd gitops-lab
 Edit `bootstrap/argocd/root-app.yaml` and set `spec.source.repoURL` to your repo URL, then apply:
 
 ```bash
-export KUBECONFIG="$HOME/.kube/lima-sdp-lab"
+export KUBECONFIG="$HOME/.kube/lima-k8s-lab"
 kubectl apply -f bootstrap/argocd/root-app.yaml
 kubectl -n argocd get applications
 ```
