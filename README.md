@@ -12,8 +12,8 @@ Keeping these separate makes it easy to share: your colleague can bring up their
 This repo uses git submodules so you can clone everything in one shot.
 
 ```bash
-git clone --recurse-submodules https://github.com/<you>/sdp-k8s-lab.git
-cd sdp-k8s-lab
+git clone --recurse-submodules https://github.com/rayabueg/k8s-lab.git
+cd k8s-lab
 
 # If you forgot --recurse-submodules:
 git submodule update --init --recursive

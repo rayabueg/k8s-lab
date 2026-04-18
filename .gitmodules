@@ -3,4 +3,4 @@
 	url = https://github.com/rayabueg/gitops-lab.git
 [submodule "lima"]
 	path = lima
-	url = https://github.com/rayabueg/lab.git
+	url = https://github.com/rayabueg/lima.git
