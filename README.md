@@ -9,11 +9,20 @@ Keeping these separate makes it easy to share: your colleague can bring up their
 
 ## Quick start (for a colleague)
 
+This repo uses git submodules so you can clone everything in one shot.
+
+```bash
+git clone --recurse-submodules https://github.com/<you>/sdp-k8s-lab.git
+cd sdp-k8s-lab
+
+# If you forgot --recurse-submodules:
+git submodule update --init --recursive
+```
+
 ### 1) Bootstrap the cluster with Lima
 
 ```bash
-git clone https://github.com/<you>/sdp-lab-lima-bootstrap.git
-cd sdp-lab-lima-bootstrap
+cd lima
 
 # Optional: rebuild VM
 chmod +x rebuild-lab.sh
@@ -60,10 +69,13 @@ echo
 
 ### 4) Point Argo CD at the GitOps repo
 
-Fork/clone the GitOps repo:
+The GitOps repo is included as the `gitops-lab/` submodule.
+
+If you’re using a fork, update `gitops-lab/bootstrap/argocd/root-app.yaml` so `spec.source.repoURL` points at your fork.
+
+From this repo root:
 
 ```bash
-git clone https://github.com/<you>/gitops-lab.git
 cd gitops-lab
 ```
 
