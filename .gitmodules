@@ -1,0 +1,6 @@
+[submodule "gitops-lab"]
+	path = gitops-lab
+	url = https://github.com/rayabueg/gitops-lab.git
+[submodule "lima"]
+	path = lima
+	url = https://github.com/rayabueg/lab.git
