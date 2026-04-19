@@ -91,3 +91,71 @@ kubectl -n argocd get applications
 
 - If you change the GitOps repo URL, make sure Argo CD’s root `Application` points at the right fork.
 - Some addons (for example `external-dns`) require provider credentials/config before they should be synced.
+
+## Maintaining this repo (submodules)
+
+This repo is a **parent** that pins exact commits of its submodules (especially `gitops-lab/`).
+That means updates are a 2-step process:
+
+1) **Commit + push changes in the submodule repo first**
+2) **Commit + push the parent repo “pointer bump”** (the gitlink change)
+
+### Pull the latest pinned submodule revisions
+
+When you pull parent changes, also refresh submodules to the pinned commits:
+
+```bash
+git pull
+git submodule update --init --recursive
+```
+
+### Update the `gitops-lab/` submodule (recommended workflow)
+
+Make changes inside the submodule and push them:
+
+```bash
+cd gitops-lab
+
+# If you plan to commit, work on a branch (submodules are often checked out detached)
+git switch -c <branch-name> || git switch <branch-name>
+
+git status
+git add -A
+git commit -m "<scope>: <summary>"
+git push -u origin <branch-name>
+```
+
+Then bump the parent repo pointer and push it:
+
+```bash
+cd ..
+git status
+git add gitops-lab
+
+# Commit records the new submodule SHA in the parent
+git commit -m "submodule(gitops-lab): bump to $(cd gitops-lab && git rev-parse --short HEAD)"
+git push
+```
+
+### Optional: move submodules to latest remote commits
+
+Use this only if you explicitly want to advance the submodule to whatever its remote branch currently points at:
+
+```bash
+git submodule update --remote --recursive
+git add gitops-lab
+git commit -m "submodule(gitops-lab): update to latest remote"
+git push
+```
+
+## Commit message standard (recommended)
+
+Keep messages short and scannable; use a simple `scope: summary` format:
+
+- In `gitops-lab/`: use a real scope like `addons: ...`, `k8s-lab: ...`, `gateway: ...`, `bootstrap: ...`
+  - Example: `addons: add descheduler and core-dns overrides`
+- In the parent repo: only use submodule-pointer commits
+  - Format: `submodule(gitops-lab): bump to <sha> (reason)`
+  - Example: `submodule(gitops-lab): bump to 1994eb1 (add descheduler + core-dns)`
+
+This makes it obvious which commits changed **content** (submodule) vs which commits just changed the **pinned version** (parent).
