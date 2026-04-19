@@ -97,6 +97,11 @@ kubectl -n argocd get applications
 This repo is a **parent** that pins exact commits of its submodules (especially `gitops-lab/`).
 That means updates are a 2-step process:
 
+This repo currently pins two submodules:
+
+- GitOps state: [gitops-lab/README.md](gitops-lab/README.md) (see the “Contributing” section)
+- Bootstrap scripts: [lima/README.md](lima/README.md) (see the “Contributing” section)
+
 ### Why submodules (for this repo)
 
 We use submodules to get **tight coupling of versions** without turning everything into a monorepo:
