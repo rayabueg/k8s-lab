@@ -97,6 +97,17 @@ kubectl -n argocd get applications
 This repo is a **parent** that pins exact commits of its submodules (especially `gitops-lab/`).
 That means updates are a 2-step process:
 
+### Why submodules (for this repo)
+
+We use submodules to get **tight coupling of versions** without turning everything into a monorepo:
+
+- **Tight coupling (pinned versions):** the parent repo records the exact `gitops-lab/` commit SHA that the lab expects.
+  Everyone who checks out the parent + runs `git submodule update` gets the same GitOps state.
+- **Separation of concerns:** bootstrap tooling (Lima VM + kubeadm) and GitOps state evolve at different speeds and often have different reviewers/owners.
+  Keeping them as separate repos reduces noise and keeps changes focused.
+- **History tracking:** content changes land as normal commits in the submodule; the parent repo only records explicit “pointer bump” commits.
+  This makes it easy to audit “what changed” vs “which version we pinned” and to roll back by resetting the submodule pointer.
+
 1) **Commit + push changes in the submodule repo first**
 2) **Commit + push the parent repo “pointer bump”** (the gitlink change)
 
