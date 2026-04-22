@@ -1,11 +1,12 @@
 # Kubernetes lab (Lima + Argo CD)
 
-This lab is intentionally split into two parts:
+This lab is intentionally split into three parts:
 
 - **Bootstrap (VM + Kubernetes)**: the [lima](lima) repo boots an Ubuntu VM with `kubeadm`, installs Cilium, and (optionally) installs Argo CD.
-- **GitOps state (cluster config)**: the [gitops-lab](gitops-lab) repo is the source-of-truth that Argo CD syncs (addons, gateway resources, demo apps, etc.).
+- **Cluster config (infra + addons)**: the [gitops-lab](gitops-lab) repo is the source-of-truth that Argo CD syncs for cluster infrastructure — addons, gateway resources, CRDs, namespaces, etc.
+- **User-facing apps**: the [cluster-applications](cluster-applications) repo holds the Argo CD `Application` CRDs that deploy team apps onto the cluster (one repo, many clusters).
 
-Keeping these separate makes it easy to share: your colleague can bring up their own cluster from `lima/` and point Argo CD at a fork of `gitops-lab/`.
+Keeping these separate makes it easy to share: a colleague can bring up their own cluster from `lima/`, point Argo CD at a fork of `gitops-lab/` for infra, and point it at a fork of `cluster-applications/` for their own apps.
 
 ## Quick start (for a colleague)
 
@@ -105,10 +106,11 @@ kubectl -n argocd get applications
 This repo is a **parent** that pins exact commits of its submodules (especially `gitops-lab/`).
 That means updates are a 2-step process:
 
-This repo currently pins two submodules:
+This repo currently pins three submodules:
 
-- GitOps state: [gitops-lab/README.md](gitops-lab/README.md) (see the “Contributing” section)
-- Bootstrap scripts: [lima/README.md](lima/README.md) (see the “Contributing” section)
+- Bootstrap scripts: [lima/README.md](lima/README.md)
+- Cluster infra / GitOps state: [gitops-lab/README.md](gitops-lab/README.md)
+- User-facing apps (app-of-apps): [cluster-applications/README.md](cluster-applications/README.md)
 
 ### Why submodules (for this repo)
 
@@ -178,8 +180,10 @@ Keep messages short and scannable; use a simple `scope: summary` format:
 
 - In `gitops-lab/`: use a real scope like `addons: ...`, `k8s-lab: ...`, `gateway: ...`, `bootstrap: ...`
   - Example: `addons: add descheduler and core-dns overrides`
+- In `cluster-applications/`: use `app(<name>): ...`, `cluster(<name>): ...`, or `bootstrap: ...`
+  - Example: `app(demo-vite-ui): bump image tag to 0.3.0`
 - In the parent repo: only use submodule-pointer commits
-  - Format: `submodule(gitops-lab): bump to <sha> (reason)`
+  - Format: `submodule(<name>): bump to <sha> (reason)`
   - Example: `submodule(gitops-lab): bump to 1994eb1 (add descheduler + core-dns)`
 
 This makes it obvious which commits changed **content** (submodule) vs which commits just changed the **pinned version** (parent).
