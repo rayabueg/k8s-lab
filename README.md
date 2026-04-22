@@ -79,7 +79,15 @@ From this repo root:
 cd gitops-lab
 ```
 
-Edit `bootstrap/argocd/root-app.yaml` and set `spec.source.repoURL` to your repo URL, then apply:
+Edit `bootstrap/argocd/root-app.yaml` and set `spec.source.repoURL` to your repo URL:
+
+```bash
+# Quick one-liner (replace with your actual fork URL)
+sed -i '' 's|https://github.com/rayabueg/gitops-lab.git|https://github.com/<you>/gitops-lab.git|' \
+  bootstrap/argocd/root-app.yaml
+```
+
+Then apply:
 
 ```bash
 export KUBECONFIG="$HOME/.kube/lima-k8s-lab"

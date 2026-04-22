@@ -1,0 +1,53 @@
+name: Validate manifests
+
+on:
+  pull_request:
+    paths:
+      - 'gitops-lab/**'
+      - 'apps/**'
+  push:
+    branches:
+      - main
+    paths:
+      - 'gitops-lab/**'
+      - 'apps/**'
+
+jobs:
+  kustomize-build:
+    name: kustomize build clusters/k8s-lab
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Install kustomize
+        run: |
+          curl -sSfL "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" \
+            | bash -s -- /usr/local/bin
+
+      - name: Build cluster manifests
+        run: kustomize build gitops-lab/clusters/k8s-lab > /dev/null
+
+  vite-build:
+    name: npm build demo-vite-ui
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/demo-vite-ui
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/demo-vite-ui/package-lock.json
+
+      - run: npm ci
+      - run: npm audit --audit-level=moderate
+      - run: npm run build
