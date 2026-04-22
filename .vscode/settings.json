@@ -1,0 +1,6 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "kubectl -n envoy-gateway-system": true,
+        "kubectl apply": true
+    }
+}

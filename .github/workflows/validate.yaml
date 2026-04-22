@@ -36,6 +36,9 @@ jobs:
   vite-build:
     name: npm build demo-vite-ui
     runs-on: ubuntu-latest
+    # Full CI (audit + build + push) lives in demo-vite-ui-ci.yaml.
+    # This job keeps a fast sanity check here so kustomize + build both
+    # pass on the same PR when gitops-lab and app sources change together.
     defaults:
       run:
         working-directory: apps/demo-vite-ui

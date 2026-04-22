@@ -1,0 +1,83 @@
+name: demo-vite-ui CI
+
+on:
+  pull_request:
+    paths:
+      - 'apps/demo-vite-ui/**'
+      - '.github/workflows/demo-vite-ui-ci.yaml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/demo-vite-ui/**'
+      - '.github/workflows/demo-vite-ui-ci.yaml'
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/demo-vite-ui
+
+jobs:
+  # ── lint & build (runs on every PR and push) ──────────────────────────────
+  test:
+    name: npm audit + build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/demo-vite-ui
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/demo-vite-ui/package-lock.json
+
+      - run: npm ci
+      - run: npm audit --audit-level=moderate
+      - run: npm run build
+
+  # ── build & push multi-arch image (main branch only) ─────────────────────
+  build-push:
+    name: build & push to GHCR
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=raw,value=latest
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/demo-vite-ui
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Build stage always runs on host platform to avoid esbuild QEMU issues
+          build-args: BUILDPLATFORM=linux/${{ runner.arch == 'X64' && 'amd64' || 'arm64' }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
