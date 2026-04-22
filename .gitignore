@@ -1,1 +1,6 @@
 .DS_Store
+
+# Vite build output — never commit generated artifacts
+apps/demo-vite-ui/dist/
+apps/demo-vite-ui/tsconfig.tsbuildinfo
+apps/demo-vite-ui/node_modules/
