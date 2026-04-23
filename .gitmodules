@@ -1,6 +1,6 @@
 [submodule "cluster-addons"]
 	path = cluster-addons
-	url = https://github.com/rayabueg/gitops-lab.git
+	url = https://github.com/rayabueg/cluster-addons.git
 [submodule "lima"]
 	path = lima
 	url = https://github.com/rayabueg/lima.git
