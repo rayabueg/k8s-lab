@@ -1,10 +1,9 @@
-[submodule "gitops-lab"]
-	path = gitops-lab
+[submodule "cluster-addons"]
+	path = cluster-addons
 	url = https://github.com/rayabueg/gitops-lab.git
 [submodule "lima"]
 	path = lima
 	url = https://github.com/rayabueg/lima.git
 [submodule "cluster-applications"]
 	path = cluster-applications
-	# TODO: create GitHub repo then run: git submodule set-url cluster-applications https://github.com/rayabueg/cluster-applications.git
 	url = https://github.com/rayabueg/cluster-applications.git

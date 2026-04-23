@@ -3,10 +3,10 @@
 This lab is intentionally split into three parts:
 
 - **Bootstrap (VM + Kubernetes)**: the [lima](lima) repo boots an Ubuntu VM with `kubeadm`, installs Cilium, and (optionally) installs Argo CD.
-- **Cluster config (infra + addons)**: the [gitops-lab](gitops-lab) repo is the source-of-truth that Argo CD syncs for cluster infrastructure — addons, gateway resources, CRDs, namespaces, etc.
+- **Cluster config (infra + addons)**: the [cluster-addons](cluster-addons) repo is the source-of-truth that Argo CD syncs for cluster infrastructure — addons, gateway resources, CRDs, namespaces, etc.
 - **User-facing apps**: the [cluster-applications](cluster-applications) repo holds the Argo CD `Application` CRDs that deploy team apps onto the cluster (one repo, many clusters).
 
-Keeping these separate makes it easy to share: a colleague can bring up their own cluster from `lima/`, point Argo CD at a fork of `gitops-lab/` for infra, and point it at a fork of `cluster-applications/` for their own apps.
+Keeping these separate makes it easy to share: a colleague can bring up their own cluster from `lima/`, point Argo CD at a fork of `cluster-addons/` for infra, and point it at a fork of `cluster-applications/` for their own apps.
 
 ## Quick start (for a colleague)
 
@@ -70,14 +70,14 @@ echo
 
 ### 4) Point Argo CD at the GitOps repo
 
-The GitOps repo is included as the `gitops-lab/` submodule.
+The GitOps repo is included as the `cluster-addons/` submodule.
 
-If you’re using a fork, update `gitops-lab/bootstrap/argocd/root-app.yaml` so `spec.source.repoURL` points at your fork.
+If you’re using a fork, update `cluster-addons/bootstrap/argocd/root-app.yaml` so `spec.source.repoURL` points at your fork.
 
 From this repo root:
 
 ```bash
-cd gitops-lab
+cd cluster-addons
 ```
 
 Edit `bootstrap/argocd/root-app.yaml` and set `spec.source.repoURL` to your repo URL:
@@ -103,20 +103,20 @@ kubectl -n argocd get applications
 
 ## Maintaining this repo (submodules)
 
-This repo is a **parent** that pins exact commits of its submodules (especially `gitops-lab/`).
+This repo is a **parent** that pins exact commits of its submodules (especially `cluster-addons/`).
 That means updates are a 2-step process:
 
 This repo currently pins three submodules:
 
 - Bootstrap scripts: [lima/README.md](lima/README.md)
-- Cluster infra / GitOps state: [gitops-lab/README.md](gitops-lab/README.md)
+- Cluster infra / GitOps state: [cluster-addons/README.md](cluster-addons/README.md)
 - User-facing apps (app-of-apps): [cluster-applications/README.md](cluster-applications/README.md)
 
 ### Why submodules (for this repo)
 
 We use submodules to get **tight coupling of versions** without turning everything into a monorepo:
 
-- **Tight coupling (pinned versions):** the parent repo records the exact `gitops-lab/` commit SHA that the lab expects.
+- **Tight coupling (pinned versions):** the parent repo records the exact `cluster-addons/` commit SHA that the lab expects.
   Everyone who checks out the parent + runs `git submodule update` gets the same GitOps state.
 - **Separation of concerns:** bootstrap tooling (Lima VM + kubeadm) and GitOps state evolve at different speeds and often have different reviewers/owners.
   Keeping them as separate repos reduces noise and keeps changes focused.
@@ -135,12 +135,12 @@ git pull
 git submodule update --init --recursive
 ```
 
-### Update the `gitops-lab/` submodule (recommended workflow)
+### Update the `cluster-addons/` submodule (recommended workflow)
 
 Make changes inside the submodule and push them:
 
 ```bash
-cd gitops-lab
+cd cluster-addons
 
 # If you plan to commit, work on a branch (submodules are often checked out detached)
 git switch -c <branch-name> || git switch <branch-name>
@@ -156,10 +156,10 @@ Then bump the parent repo pointer and push it:
 ```bash
 cd ..
 git status
-git add gitops-lab
+git add cluster-addons
 
 # Commit records the new submodule SHA in the parent
-git commit -m "submodule(gitops-lab): bump to $(cd gitops-lab && git rev-parse --short HEAD)"
+git commit -m "submodule(cluster-addons): bump to $(cd cluster-addons && git rev-parse --short HEAD)"
 git push
 ```
 
@@ -169,8 +169,8 @@ Use this only if you explicitly want to advance the submodule to whatever its re
 
 ```bash
 git submodule update --remote --recursive
-git add gitops-lab
-git commit -m "submodule(gitops-lab): update to latest remote"
+git add cluster-addons
+git commit -m "submodule(cluster-addons): update to latest remote"
 git push
 ```
 
@@ -178,12 +178,12 @@ git push
 
 Keep messages short and scannable; use a simple `scope: summary` format:
 
-- In `gitops-lab/`: use a real scope like `addons: ...`, `k8s-lab: ...`, `gateway: ...`, `bootstrap: ...`
+- In `cluster-addons/`: use a real scope like `addons: ...`, `k8s-lab: ...`, `gateway: ...`, `bootstrap: ...`
   - Example: `addons: add descheduler and core-dns overrides`
 - In `cluster-applications/`: use `app(<name>): ...`, `cluster(<name>): ...`, or `bootstrap: ...`
   - Example: `app(demo-vite-ui): bump image tag to 0.3.0`
 - In the parent repo: only use submodule-pointer commits
   - Format: `submodule(<name>): bump to <sha> (reason)`
-  - Example: `submodule(gitops-lab): bump to 1994eb1 (add descheduler + core-dns)`
+  - Example: `submodule(cluster-addons): bump to 1994eb1 (add descheduler + core-dns)`
 
 This makes it obvious which commits changed **content** (submodule) vs which commits just changed the **pinned version** (parent).
