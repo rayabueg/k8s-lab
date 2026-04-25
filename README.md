@@ -68,33 +68,32 @@ kubectl -n argocd get secret argocd-initial-admin-secret \
 echo
 ```
 
-### 4) Point Argo CD at the GitOps repo
+### 4) Bootstrap GitOps state (cluster-addons + cluster-applications)
 
-The GitOps repo is included as the `cluster-addons/` submodule.
+Apply both root `Application` manifests from this repo root. Argo CD will then continuously sync all cluster addons and user-facing apps from their respective repos.
 
-If you’re using a fork, update `cluster-addons/bootstrap/argocd/root-app.yaml` so `spec.source.repoURL` points at your fork.
-
-From this repo root:
+If you are using forks, update `spec.source.repoURL` in each root app before applying:
 
 ```bash
-cd cluster-addons
+# Update to your cluster-addons fork (if needed)
+sed -i '' 's|https://github.com/rayabueg/cluster-addons.git|https://github.com/<you>/cluster-addons.git|' \
+  cluster-addons/bootstrap/argocd/root-app.yaml
+
+# Update to your cluster-applications fork (if needed)
+sed -i '' 's|https://github.com/rayabueg/cluster-applications.git|https://github.com/<you>/cluster-applications.git|' \
+  cluster-applications/bootstrap/argocd/root-app.yaml
 ```
 
-Edit `bootstrap/argocd/root-app.yaml` and set `spec.source.repoURL` to your repo URL:
-
-```bash
-# Quick one-liner (replace with your actual fork URL)
-sed -i '' 's|https://github.com/rayabueg/gitops-lab.git|https://github.com/<you>/gitops-lab.git|' \
-  bootstrap/argocd/root-app.yaml
-```
-
-Then apply:
+Then apply both:
 
 ```bash
 export KUBECONFIG="$HOME/.kube/lima-k8s-lab"
-kubectl apply -f bootstrap/argocd/root-app.yaml
+kubectl apply -f cluster-addons/bootstrap/argocd/root-app.yaml
+kubectl apply -f cluster-applications/bootstrap/argocd/root-app.yaml
 kubectl -n argocd get applications
 ```
+
+Argo CD reconciles continuously — `k8s-lab-root` syncs cluster infra/addons and `cluster-applications` syncs user-facing apps.
 
 ## Notes
 
