@@ -131,22 +131,31 @@ kubectl annotate application <name> -n argocd \
 
 ---
 
-## Step 6: Open ArgoCD UI
+## Step 6: Open ArgoCD UI port-forward
 
-In a **dedicated terminal** (leave it running):
+**Agents: run this in a background (async) terminal and leave it running.**
 
 ```bash
 export KUBECONFIG=~/.kube/lima-k8s-lab
 kubectl port-forward svc/argocd-server -n argocd 8080:443
 ```
 
+Verify it is listening:
+```bash
+curl -sk https://localhost:8080 | grep -o '<title>[^<]*</title>'
+# expected: <title>Argo CD</title>
+```
+
 Then browse to **https://localhost:8080** (accept the self-signed cert warning).
 
-Credentials:
-- **Username**: `admin`
-- **Password**: `kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath='{.data.password}' | base64 -d`
+Retrieve credentials:
+```bash
+# username: admin
+kubectl get secret argocd-initial-admin-secret -n argocd \
+  -o jsonpath='{.data.password}' | base64 -d && echo
+```
 
-> If the secret no longer exists (password was changed), retrieve it from the ArgoCD CLI:
+> If the secret no longer exists (password was changed):
 > `argocd account update-password`
 
 ---
@@ -177,7 +186,7 @@ limactl shell k8s-lab curl -s -o /dev/null -w "%{http_code}" http://$GATEWAY_IP/
 - [ ] `kubectl get nodes` → node `Ready`
 - [ ] `kubectl get pods -n kube-system` → all `Running`
 - [ ] `kubectl get applications -n argocd` → all `Synced` + `Healthy`
-- [ ] ArgoCD UI accessible at https://localhost:8080 (port-forward running)
+- [ ] ArgoCD UI port-forward running (async terminal) and `curl -sk https://localhost:8080` returns `<title>Argo CD</title>`
 - [ ] `curl http://$GATEWAY_IP/hello` → HTTP 200
 - [ ] Istio: `kubectl get pods -n istio-system` → see `cluster-addon-validate-istio.md`
 

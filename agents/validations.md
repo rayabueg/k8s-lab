@@ -41,7 +41,27 @@ kubectl annotate application <name> -n argocd argocd.argoproj.io/refresh=normal 
 
 ---
 
-## 4. Envoy Gateway smoke test
+## 4. ArgoCD UI
+
+**Agents: ensure the port-forward is running before this check.**
+
+```bash
+# Start if not already running (background terminal)
+export KUBECONFIG=~/.kube/lima-k8s-lab
+kubectl port-forward svc/argocd-server -n argocd 8080:443
+```
+
+```bash
+# Verify it's up
+curl -sk https://localhost:8080 | grep -o '<title>[^<]*</title>'
+# expected: <title>Argo CD</title>
+```
+
+**Done when:** curl returns `<title>Argo CD</title>` and https://localhost:8080 is browsable.
+
+---
+
+## 5. Envoy Gateway smoke test
 
 ```bash
 GATEWAY_IP=$(kubectl get gateway eg -n envoy-gateway-system \
