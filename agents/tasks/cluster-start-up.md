@@ -35,6 +35,8 @@ initialized, and re-exports the kubeconfig. Safe to run every time.
 
 Expected duration: ~1-2 minutes.
 
+After resume, continue through Steps 2 → 3, then open the ArgoCD UI (**Step 6**).
+
 ---
 
 ## Step 1b: Full rebuild (VM does not exist)
@@ -55,6 +57,8 @@ Expected total duration: ~10-15 minutes.
 ```bash
 VM_NAME=k8s-lab CPUS=4 MEMORY=8 DISK=40 ./rebuild-lab.sh
 ```
+
+After rebuild, continue through Steps 2 → 3 → 4 → 5, then open the ArgoCD UI (**Step 6**).
 
 ---
 
@@ -127,7 +131,7 @@ kubectl annotate application <name> -n argocd \
 
 ---
 
-## Step 6: Open ArgoCD UI (optional but recommended)
+## Step 6: Open ArgoCD UI
 
 In a **dedicated terminal** (leave it running):
 
