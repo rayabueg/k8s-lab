@@ -127,9 +127,30 @@ kubectl annotate application <name> -n argocd \
 
 ---
 
-## Step 6: Verify Envoy Gateway
+## Step 6: Open ArgoCD UI (optional but recommended)
+
+In a **dedicated terminal** (leave it running):
 
 ```bash
+export KUBECONFIG=~/.kube/lima-k8s-lab
+kubectl port-forward svc/argocd-server -n argocd 8080:443
+```
+
+Then browse to **https://localhost:8080** (accept the self-signed cert warning).
+
+Credentials:
+- **Username**: `admin`
+- **Password**: `kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath='{.data.password}' | base64 -d`
+
+> If the secret no longer exists (password was changed), retrieve it from the ArgoCD CLI:
+> `argocd account update-password`
+
+---
+
+## Step 7: Verify Envoy Gateway
+
+```bash
+export KUBECONFIG=~/.kube/lima-k8s-lab
 kubectl get pods -n envoy-gateway-system
 kubectl get gateway eg -n envoy-gateway-system
 
@@ -152,6 +173,7 @@ limactl shell k8s-lab curl -s -o /dev/null -w "%{http_code}" http://$GATEWAY_IP/
 - [ ] `kubectl get nodes` → node `Ready`
 - [ ] `kubectl get pods -n kube-system` → all `Running`
 - [ ] `kubectl get applications -n argocd` → all `Synced` + `Healthy`
+- [ ] ArgoCD UI accessible at https://localhost:8080 (port-forward running)
 - [ ] `curl http://$GATEWAY_IP/hello` → HTTP 200
 - [ ] Istio: `kubectl get pods -n istio-system` → see `cluster-addon-validate-istio.md`
 
@@ -169,3 +191,5 @@ limactl shell k8s-lab curl -s -o /dev/null -w "%{http_code}" http://$GATEWAY_IP/
 | ArgoCD apps stuck `OutOfSync` | Annotate app with `argocd.argoproj.io/refresh=normal` (see Step 5) |
 | Gateway IP unreachable from host (`HTTP 000`) | Gateway IP is a VM-internal address; curl from inside VM: `limactl shell k8s-lab curl http://<ip>/hello` |
 | `kubectl` returns stale data after VM suspend/resume | Re-run `bootstrap-cluster.sh` to refresh kubeconfig |
+| ArgoCD UI returns `502 Bad Gateway` | Port-forward dropped — re-run Step 6 |
+| ArgoCD `admin` password unknown | `kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath='{.data.password}' \| base64 -d` |

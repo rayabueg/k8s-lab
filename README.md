@@ -144,7 +144,6 @@ cd cluster-addons
 # If you plan to commit, work on a branch (submodules are often checked out detached)
 git switch -c <branch-name> || git switch <branch-name>
 
-git status
 git add -A
 git commit -m "<scope>: <summary>"
 git push -u origin <branch-name>
