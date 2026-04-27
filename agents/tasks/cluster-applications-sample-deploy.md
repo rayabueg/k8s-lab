@@ -16,26 +16,19 @@ and (optionally) enroll it in Istio Ambient for mTLS verification.
 
 ## Tasks
 
-1. **Create namespace** — add to `cluster-addons/clusters/k8s-lab/addons/namespaces/namespaces.yaml`
-   ```yaml
-   - name: <app-namespace>
-   ```
-
-2. **Create app manifests** under `apps/<app-name>/` at repo root (or a new `cluster-addons` path):
-   - `deployment.yaml` — use `traefik/whoami:v1.10.3` (ARM64 safe)
+1. **Create an addon folder** for the app under `cluster-addons/clusters/k8s-lab/addons/<app-name>/`:
+   - `namespace.yaml` — `kind: Namespace` with optional `istio.io/dataplane-mode: ambient` label
+   - `deployment.yaml` — use `traefik/whoami:v1.10.3` (ARM64-safe)
    - `service.yaml` — ClusterIP
+   - `httproute.yaml` — `HTTPRoute` pointing at `eg` Gateway in `envoy-gateway-system`
+   - `kustomization.yaml` — lists all four resources
 
-3. **Expose via Envoy Gateway** — add to `cluster-addons/clusters/k8s-lab/addons/envoy-gateway/gateway/`:
-   - `<app-name>.yaml` — `HTTPRoute` pointing at the service
-   - Add to `kustomization.yaml` resources list
+   > This is the established pattern (see `cluster-addons/clusters/k8s-lab/addons/mesh-demo/`).
+   > The ApplicationSet auto-discovers the folder — no other files need to be edited.
 
-4. **Create ArgoCD Application** in `cluster-applications/apps/<app-name>.yaml`
-   - Source: this repo, path to app manifests
-   - Destination: cluster, target namespace
+2. **Commit and push** `cluster-addons` — ArgoCD will sync automatically
 
-5. **Commit and push** — ArgoCD will sync automatically
-
-6. **Verify**:
+3. **Verify**:
    ```bash
    # ArgoCD synced
    kubectl get application <app-name>-k8s-lab -n argocd
@@ -43,32 +36,34 @@ and (optionally) enroll it in Istio Ambient for mTLS verification.
    # Pods running
    kubectl get pods -n <app-namespace>
 
-   # Route works
+   # Route works — Gateway IP is VM-internal, curl from inside the VM
    GATEWAY_IP=$(kubectl get gateway eg -n envoy-gateway-system \
      -o jsonpath='{.status.addresses[0].value}')
-   curl -s http://$GATEWAY_IP/<path>
+   limactl shell k8s-lab curl -s http://$GATEWAY_IP/<path>
    ```
    **Done when:** pods `Running`, HTTPRoute `Accepted`, curl returns a response body.
 
-## Example HTTPRoute (adapt host/service)
+## Example HTTPRoute
+
+Route by path prefix (no `hostnames` needed — the gateway handles all hosts):
 
 ```yaml
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
   name: <app-name>
-  namespace: <app-namespace>
+  namespace: <app-name>
 spec:
   parentRefs:
-    - name: eg
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: eg
       namespace: envoy-gateway-system
-  hostnames:
-    - "<app-name>.local"
   rules:
     - matches:
         - path:
             type: PathPrefix
-            value: /
+            value: /<app-name>
       backendRefs:
         - name: <app-name>
           port: 80
@@ -76,7 +71,7 @@ spec:
 
 ## Optional: Enroll in Istio Ambient
 
-After Istio Ambient is installed (see `tasks/install-istio-ambient.md`), enable ambient mode
+After Istio Ambient is installed (see `tasks/cluster-addon-istio-ambient.md`), enable ambient mode
 for the namespace:
 
 ```bash

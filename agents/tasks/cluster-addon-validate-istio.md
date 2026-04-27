@@ -82,8 +82,8 @@ kubectl get namespace mesh-demo --show-labels
 GATEWAY_IP=$(kubectl get gateway eg -n envoy-gateway-system -o jsonpath='{.status.addresses[0].value}')
 echo "Gateway IP: $GATEWAY_IP"
 
-# Hit the mesh-demo route
-curl -s http://$GATEWAY_IP/mesh-demo
+# Gateway IP is VM-internal — must curl from inside the Lima VM
+limactl shell k8s-lab curl -s http://$GATEWAY_IP/mesh-demo
 
 # Expected: traefik/whoami response showing request headers + IP info
 ```
@@ -91,8 +91,8 @@ curl -s http://$GATEWAY_IP/mesh-demo
 ### 6. Validate existing routes not broken (regression)
 
 ```bash
-curl -s http://$GATEWAY_IP/hello    # demo-hello (whoami)
-curl -s http://$GATEWAY_IP/vite/    # demo-vite-ui
+limactl shell k8s-lab curl -s http://$GATEWAY_IP/hello    # demo-hello (whoami)
+limactl shell k8s-lab curl -s -o /dev/null -w "%{http_code}" http://$GATEWAY_IP/vite/
 ```
 
 Both should return HTTP 200.
@@ -124,6 +124,6 @@ kubectl exec -n mesh-demo $POD_A -- wget -qO- http://$SVC_IP/
 - [ ] All ArgoCD apps `Synced` + `Healthy`
 - [ ] `ztunnel` DaemonSet `DESIRED == READY`
 - [ ] `mesh-demo` pods running, no `istio-proxy` sidecar
-- [ ] `curl http://$GATEWAY_IP/mesh-demo` returns 200
+- [ ] `curl http://$GATEWAY_IP/mesh-demo` returns 200 (via `limactl shell k8s-lab curl ...`)
 - [ ] `curl http://$GATEWAY_IP/hello` still returns 200 (no regression)
 - [ ] mesh-demo pods visible in `ztunnel-cli workloads`

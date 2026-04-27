@@ -85,7 +85,7 @@ kubectl get nodes
 kubectl get pods -n kube-system
 ```
 
-Expected: node `k8s-lab` in `Ready` state, Cilium pods running.
+Expected: node `lima-k8s-lab` in `Ready` state, Cilium pods running.
 
 ---
 
@@ -137,8 +137,9 @@ GATEWAY_IP=$(kubectl get gateway eg -n envoy-gateway-system \
   -o jsonpath='{.status.addresses[0].value}')
 echo "Gateway IP: $GATEWAY_IP"
 
-curl -s http://$GATEWAY_IP/hello    # should return whoami response
-curl -s http://$GATEWAY_IP/vite/    # should return Vite UI HTML
+# Gateway IP is VM-internal — curl from inside the VM
+limactl shell k8s-lab curl -s http://$GATEWAY_IP/hello   # should return whoami response
+limactl shell k8s-lab curl -s -o /dev/null -w "%{http_code}" http://$GATEWAY_IP/vite/   # should return 200
 ```
 
 ---
@@ -152,7 +153,7 @@ curl -s http://$GATEWAY_IP/vite/    # should return Vite UI HTML
 - [ ] `kubectl get pods -n kube-system` → all `Running`
 - [ ] `kubectl get applications -n argocd` → all `Synced` + `Healthy`
 - [ ] `curl http://$GATEWAY_IP/hello` → HTTP 200
-- [ ] Istio: `kubectl get pods -n istio-system` → see `validate-istio-ambient.md`
+- [ ] Istio: `kubectl get pods -n istio-system` → see `cluster-addon-validate-istio.md`
 
 ---
 

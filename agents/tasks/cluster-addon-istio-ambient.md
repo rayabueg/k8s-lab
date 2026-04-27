@@ -22,35 +22,30 @@ Under `cluster-addons/clusters/k8s-lab/addons/`:
 
 ```
 istio/
-  kustomization.yaml          ← umbrella kustomization (or split per component)
-  base/
-    application.yaml          ← ArgoCD Application for istio-base (CRDs)
-    kustomization.yaml
-  istiod/
-    application.yaml          ← ArgoCD Application for istiod (ambient profile)
-    kustomization.yaml
-  cni/
-    application.yaml          ← ArgoCD Application for istio-cni (ambient)
-    kustomization.yaml
-  ztunnel/
-    application.yaml          ← ArgoCD Application for ztunnel DaemonSet
-    kustomization.yaml
+  kustomization.yaml          ← lists all four Application manifests
+  application-base.yaml       ← ArgoCD Application for istio-base (CRDs)
+  application-istiod.yaml     ← ArgoCD Application for istiod (ambient profile)
+  application-cni.yaml        ← ArgoCD Application for istio-cni (ambient)
+  application-ztunnel.yaml    ← ArgoCD Application for ztunnel DaemonSet
 ```
+
+> The ApplicationSet at `clusters/k8s-lab/applicationset.yaml` auto-discovers
+> any folder under `addons/*` — no changes to root kustomization needed.
 
 ## Tasks
 
 1. Confirm the Istio version that supports Ambient + ARM64 (1.22+ recommended)
 2. Create the folder structure above under `cluster-addons/`
 3. Write ArgoCD `Application` manifests (Helm source) for each component in install order:
-   - `istio-base` — CRDs only, `syncPolicy.syncOptions: [Replace=true]`
-   - `istiod` — Helm chart `istiod`, values: `profile: ambient`
-   - `istio-cni` — Helm chart `cni`, values: `profile: ambient`
-   - `ztunnel` — Helm chart `ztunnel`
-4. Add each component to the root `kustomization.yaml` at `clusters/k8s-lab/`
-5. Verify Cilium config compatibility:
+   - `application-base.yaml` — chart `base`, `syncPolicy.syncOptions: [Replace=true]`, wave `-4`
+   - `application-istiod.yaml` — chart `istiod`, values: `profile: ambient`, wave `-3`
+   - `application-cni.yaml` — chart `cni`, values: `profile: ambient`, `cni.exclusive: false`, wave `-2`
+   - `application-ztunnel.yaml` — chart `ztunnel`, wave `-1`
+4. Write `kustomization.yaml` listing all four Application manifests as resources
+5. Commit and push `cluster-addons` — ApplicationSet auto-discovers `addons/istio/`
+6. Verify Cilium config compatibility:
    - `kubeProxyReplacement: true` + Istio Ambient requires `socketLB` awareness
-   - Check if `cilium.io/ambient-compat` annotations are needed
-6. Confirm ApplicationSet auto-discovers the new addon folder (check `applicationset.yaml` glob)
+   - `cni.exclusive: false` is the key flag for Cilium + Istio CNI coexistence
 
 ## Validation
 

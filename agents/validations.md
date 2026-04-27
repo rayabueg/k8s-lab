@@ -3,7 +3,7 @@
 A quick "is the cluster healthy?" check. Paste this into any agent session after a
 lab start or a major change to confirm the foundation is solid before going deeper.
 
-Feature-specific validation lives in the relevant task file (e.g. `tasks/validate-istio-ambient.md`).
+Feature-specific validation lives in the relevant task file (e.g. `tasks/cluster-addon-validate-istio.md`).
 
 ---
 
