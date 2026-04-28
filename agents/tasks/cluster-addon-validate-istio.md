@@ -100,6 +100,8 @@ limactl shell k8s-lab curl -s http://$GATEWAY_IP:$GATEWAY_PORT/mesh-demo
 
 ### 6. Validate existing routes not broken (regression)
 
+> Requires `GATEWAY_IP` and `GATEWAY_PORT` to be set — run Step 5 first or re-export them.
+
 ```bash
 limactl shell k8s-lab curl -s http://$GATEWAY_IP:$GATEWAY_PORT/hello    # demo-hello (whoami)
 limactl shell k8s-lab curl -s -o /dev/null -w "%{http_code}" http://$GATEWAY_IP:$GATEWAY_PORT/vite/
