@@ -83,8 +83,8 @@ kubectl get namespace mesh-demo --show-labels
 ```bash
 # Get the Gateway address and detect the correct HTTP port
 GATEWAY_IP=$(kubectl get gateway eg -n envoy-gateway-system -o jsonpath='{.status.addresses[0].value}')
-GATEWAY_SVC=$(kubectl get svc -n envoy-gateway-system -l gateway.envoy.io/owning-gateway-name=eg -o name | head -1)
-GATEWAY_PORT=$(kubectl get $GATEWAY_SVC -n envoy-gateway-system -o jsonpath='{.spec.ports[?(@.name=="http")].nodePort}')
+GATEWAY_SVC=$(kubectl get svc -n envoy-gateway-system -l gateway.envoyproxy.io/owning-gateway-name=eg -o name | head -1)
+GATEWAY_PORT=$(kubectl get $GATEWAY_SVC -n envoy-gateway-system -o jsonpath='{.spec.ports[?(@.name=="http-80")].nodePort}')
 # Fall back to port 80 if not NodePort
 GATEWAY_PORT=${GATEWAY_PORT:-80}
 echo "Gateway: http://$GATEWAY_IP:$GATEWAY_PORT"
