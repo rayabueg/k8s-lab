@@ -65,9 +65,12 @@ kubectl get pods -n mesh-demo -o jsonpath='{range .items[*]}{.metadata.name}{"\t
 ### 4. Validate ambient enrollment
 
 ```bash
-# Both mesh-demo pods should appear in ztunnel's workload table
-kubectl exec -n istio-system ds/ztunnel -- ztunnel-cli workloads 2>/dev/null | grep mesh-demo
+# Check ztunnel access logs — mesh-demo pods should appear as inbound connections
+kubectl logs -n istio-system ds/ztunnel --tail=20 | grep mesh-demo
+# Expected: lines like: direction="inbound" dst.workload="mesh-demo-..." dst.namespace="mesh-demo"
 ```
+
+> Note: `ztunnel-cli` is not available in Istio 1.24.x images. Use log inspection instead.
 
 If nothing appears, check the namespace label is set:
 ```bash
@@ -78,34 +81,40 @@ kubectl get namespace mesh-demo --show-labels
 ### 5. Validate HTTPRoute + Envoy Gateway
 
 ```bash
-# Get the Gateway IP
+# Get the Gateway address and detect the correct HTTP port
 GATEWAY_IP=$(kubectl get gateway eg -n envoy-gateway-system -o jsonpath='{.status.addresses[0].value}')
-echo "Gateway IP: $GATEWAY_IP"
+GATEWAY_SVC=$(kubectl get svc -n envoy-gateway-system -l gateway.envoy.io/owning-gateway-name=eg -o name | head -1)
+GATEWAY_PORT=$(kubectl get $GATEWAY_SVC -n envoy-gateway-system -o jsonpath='{.spec.ports[?(@.name=="http")].nodePort}')
+# Fall back to port 80 if not NodePort
+GATEWAY_PORT=${GATEWAY_PORT:-80}
+echo "Gateway: http://$GATEWAY_IP:$GATEWAY_PORT"
 
 # Gateway IP is VM-internal — must curl from inside the Lima VM
-limactl shell k8s-lab curl -s http://$GATEWAY_IP/mesh-demo
+limactl shell k8s-lab curl -s http://$GATEWAY_IP:$GATEWAY_PORT/mesh-demo
 
 # Expected: traefik/whoami response showing request headers + IP info
 ```
 
+> The gateway service type may be `NodePort` (address = node IP, port = 30080) or `ClusterIP`
+> (address = cluster IP, port = 80). Use the detection snippet above to handle both cases.
+
 ### 6. Validate existing routes not broken (regression)
 
 ```bash
-limactl shell k8s-lab curl -s http://$GATEWAY_IP/hello    # demo-hello (whoami)
-limactl shell k8s-lab curl -s -o /dev/null -w "%{http_code}" http://$GATEWAY_IP/vite/
+limactl shell k8s-lab curl -s http://$GATEWAY_IP:$GATEWAY_PORT/hello    # demo-hello (whoami)
+limactl shell k8s-lab curl -s -o /dev/null -w "%{http_code}" http://$GATEWAY_IP:$GATEWAY_PORT/vite/
 ```
 
 Both should return HTTP 200.
 
 ### 7. Optional: Confirm mTLS is active between pods
 
-```bash
-# Exec into one mesh-demo pod and curl the other by ClusterIP
-POD_A=$(kubectl get pods -n mesh-demo -o jsonpath='{.items[0].metadata.name}')
-SVC_IP=$(kubectl get svc mesh-demo -n mesh-demo -o jsonpath='{.spec.clusterIP}')
+The `whoami` image has no curl/wget, so use ztunnel logs as evidence of active mTLS:
 
-kubectl exec -n mesh-demo $POD_A -- wget -qO- http://$SVC_IP/
-# Should succeed — ztunnel transparently encrypts the traffic
+```bash
+# Confirm ztunnel is logging inbound connections for mesh-demo (direction=inbound = ztunnel-proxied)
+kubectl logs -n istio-system ds/ztunnel --tail=10 | grep "mesh-demo.*inbound"
+# Expected: lines with direction="inbound" bytes_sent=... confirming ztunnel is handling traffic
 ```
 
 ## Troubleshooting
