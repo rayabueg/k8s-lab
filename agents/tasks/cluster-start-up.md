@@ -131,22 +131,46 @@ kubectl annotate application <name> -n argocd \
 
 ---
 
-## Step 6: Open ArgoCD UI port-forward
+## Step 6: Open SSH tunnels for browser access
 
-**Agents: run this in a background (async) terminal and leave it running.**
+All browser-accessible UIs are routed through the Envoy Gateway using dedicated NodePort
+listeners. Use **SSH tunnels** (not `kubectl port-forward`) — SSH tunnels are persistent
+and don't die on idle timeout.
+
+NodePort mappings (stable across cluster restarts on the same cluster):
+- `30080` → Gateway `http:80` (app traffic)
+- `32091` → Gateway `hubble:8080` (Hubble UI)
+- `32305` → Gateway `argocd:9090` (ArgoCD UI)
+
+**Run in a dedicated terminal (leave it running):**
 
 ```bash
-export KUBECONFIG=~/.kube/lima-k8s-lab
-kubectl port-forward svc/argocd-server -n argocd 8080:443
+ssh -F ~/.lima/k8s-lab/ssh.config -N \
+  -L 8080:localhost:32305 \
+  -L 9080:localhost:30080 \
+  -L 12000:localhost:32091 \
+  lima-k8s-lab
 ```
 
-Verify it is listening:
+> If NodePorts have changed (after a full rebuild), look them up:
+> ```bash
+> export KUBECONFIG=~/.kube/lima-k8s-lab
+> kubectl get svc -n envoy-gateway-system \
+>   -l gateway.envoyproxy.io/owning-gateway-name=eg \
+>   -o jsonpath='{range .items[0].spec.ports[*]}{.name}: nodePort={.nodePort}{"\n"}{end}'
+> ```
+
+Verify all three are up:
 ```bash
-curl -sk https://localhost:8080 | grep -o '<title>[^<]*</title>'
-# expected: <title>Argo CD</title>
+curl -s -o /dev/null -w "ArgoCD: %{http_code}\n" http://localhost:8080/
+curl -s -o /dev/null -w "Hubble: %{http_code}\n" http://localhost:12000/
+curl -s -o /dev/null -w "vite: %{http_code}\n" http://localhost:9080/vite/
+# expected: 200 for all
 ```
 
-Then browse to **https://localhost:8080** (accept the self-signed cert warning).
+### ArgoCD UI — http://localhost:8080
+
+Browse to **http://localhost:8080** (HTTP only — ArgoCD runs in insecure mode).
 
 Retrieve credentials:
 ```bash
@@ -155,25 +179,30 @@ kubectl get secret argocd-initial-admin-secret -n argocd \
   -o jsonpath='{.data.password}' | base64 -d && echo
 ```
 
-> If the secret no longer exists (password was changed):
-> `argocd account update-password`
+> ArgoCD runs in insecure (HTTP) mode via the `argocd-config` addon (`server.insecure=true`).
+> Do **not** use `https://` — you will get `connection refused`.
+
+### Hubble UI — http://localhost:12000
+
+Browse to **http://localhost:12000** and select a namespace to see the service map.
+
+### App traffic — http://localhost:9080
+
+The `http` Gateway listener (port 80) serves all application HTTPRoutes (`/vite/`, `/mesh-demo`, etc.).
 
 ---
 
-## Step 7: Verify Envoy Gateway
+## Step 7: Verify Envoy Gateway listeners
 
 ```bash
 export KUBECONFIG=~/.kube/lima-k8s-lab
 kubectl get pods -n envoy-gateway-system
-kubectl get gateway eg -n envoy-gateway-system
-
-GATEWAY_IP=$(kubectl get gateway eg -n envoy-gateway-system \
-  -o jsonpath='{.status.addresses[0].value}')
-echo "Gateway IP: $GATEWAY_IP"
-
-# Gateway IP is VM-internal — curl from inside the VM
-limactl shell k8s-lab curl -s http://$GATEWAY_IP/hello   # should return whoami response
-limactl shell k8s-lab curl -s -o /dev/null -w "%{http_code}" http://$GATEWAY_IP/vite/   # should return 200
+kubectl get gateway eg -n envoy-gateway-system \
+  -o jsonpath='{range .spec.listeners[*]}{.name}: {.port}{"\n"}{end}'
+# expected:
+# http: 80
+# hubble: 8080
+# argocd: 9090
 ```
 
 ---
@@ -186,8 +215,11 @@ limactl shell k8s-lab curl -s -o /dev/null -w "%{http_code}" http://$GATEWAY_IP/
 - [ ] `kubectl get nodes` → node `Ready`
 - [ ] `kubectl get pods -n kube-system` → all `Running`
 - [ ] `kubectl get applications -n argocd` → all `Synced` + `Healthy`
-- [ ] ArgoCD UI port-forward running (async terminal) and `curl -sk https://localhost:8080` returns `<title>Argo CD</title>`
-- [ ] `curl http://$GATEWAY_IP/hello` → HTTP 200
+- [ ] Gateway listeners: `http: 80`, `hubble: 8080`, `argocd: 9090`
+- [ ] SSH UI tunnels running: `ssh -F ~/.lima/k8s-lab/ssh.config -N -L 8080:localhost:32305 -L 9080:localhost:30080 -L 12000:localhost:32091 lima-k8s-lab`
+- [ ] `curl http://localhost:8080/` → `200` (ArgoCD)
+- [ ] `curl http://localhost:12000/` → `200` (Hubble)
+- [ ] `curl http://localhost:9080/vite/` → `200` (vite UI)
 - [ ] Istio: `kubectl get pods -n istio-system` → see `cluster-addon-validate-istio.md`
 
 ---
