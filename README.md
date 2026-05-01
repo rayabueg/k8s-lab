@@ -49,25 +49,32 @@ export KUBECONFIG="$HOME/.kube/lima-k8s-lab"
 kubectl get nodes
 ```
 
-### 3) (Optional) Argo CD UI
+### 3) Start port-forwards for browser access
+
+All UIs are accessed via `kubectl port-forward`. Run in a dedicated terminal:
 
 ```bash
 export KUBECONFIG="$HOME/.kube/lima-k8s-lab"
-kubectl port-forward -n envoy-gateway-system \
-  svc/$(kubectl get svc -n envoy-gateway-system -o name | grep 'envoy-envoy-gateway' | cut -d/ -f2) \
-  9080:9080
+SVC=$(kubectl get svc -n envoy-gateway-system -o name | grep 'envoy-envoy-gateway' | cut -d/ -f2)
+
+# 8080 (demo-vite-ui) and 12000 (Hubble UI) — via Envoy Gateway
+kubectl port-forward -n envoy-gateway-system svc/$SVC 8080:8080 12000:12000 &
+
+# 9080 (Argo CD) — directly to argocd-server TLS port (avoids redirect loop)
+kubectl port-forward -n argocd svc/argocd-server 9080:443 &
 ```
 
-Open `http://localhost:9080`.
+| URL | Service |
+|---|---|
+| `http://localhost:8080/vite/` | demo-vite-ui |
+| `https://localhost:9080` | Argo CD (accept self-signed cert) |
+| `http://localhost:12000` | Hubble UI |
 
-Get the initial admin password:
+Get the Argo CD admin password:
 
 ```bash
-export KUBECONFIG="$HOME/.kube/lima-k8s-lab"
 kubectl -n argocd get secret argocd-initial-admin-secret \
-  -o jsonpath="{.data.password}" | base64 --decode
-
-echo
+  -o jsonpath="{.data.password}" | base64 --decode && echo
 ```
 
 ### 4) Bootstrap GitOps state (cluster-addons + cluster-applications)
