@@ -151,32 +151,32 @@ kubectl get svc -n envoy-gateway-system
 export KUBECONFIG=~/.kube/lima-k8s-lab
 kubectl port-forward -n envoy-gateway-system \
   svc/$(kubectl get svc -n envoy-gateway-system -o name | grep 'envoy-envoy-gateway' | cut -d/ -f2) \
-  8080:8080 9080:80 12000:9090
+  8080:8080 9080:9080 12000:12000
 ```
 
 Or substitute the service name directly (e.g.):
 ```bash
 kubectl port-forward -n envoy-gateway-system \
   svc/envoy-envoy-gateway-system-eg-5391c79d \
-  8080:8080 9080:80 12000:9090
+  8080:8080 9080:9080 12000:12000
 ```
 
 Port mappings:
-- `8080` → Gateway `argocd:8080` (ArgoCD UI)
-- `9080` → Gateway `http:80` (app traffic)
-- `12000` → Gateway `hubble:9090` (Hubble UI)
+- `8080` → Gateway `http:8080` (demo-vite UI)
+- `9080` → Gateway `argocd:9080` (ArgoCD UI)
+- `12000` → Gateway `hubble:12000` (Hubble UI)
 
 Verify all three are up:
 ```bash
-curl -s -o /dev/null -w "ArgoCD  (8080): %{http_code}\n" http://localhost:8080/
-curl -s -o /dev/null -w "App     (9080): %{http_code}\n" http://localhost:9080/
-curl -s -o /dev/null -w "Hubble (12000): %{http_code}\n" http://localhost:12000/
+curl -s -o /dev/null -w "Demo-vite (8080): %{http_code}\n" http://localhost:8080/vite/
+curl -s -o /dev/null -w "ArgoCD    (9080): %{http_code}\n" http://localhost:9080/
+curl -s -o /dev/null -w "Hubble   (12000): %{http_code}\n" http://localhost:12000/
 # expected: 200, 200, 307
 ```
 
-### ArgoCD UI — http://localhost:8080
+### ArgoCD UI — http://localhost:9080
 
-Browse to **http://localhost:8080** (HTTP only — ArgoCD runs in insecure mode).
+Browse to **http://localhost:9080** (HTTP only — ArgoCD runs in insecure mode).
 
 Retrieve credentials:
 ```bash
@@ -192,9 +192,9 @@ kubectl get secret argocd-initial-admin-secret -n argocd \
 
 Browse to **http://localhost:12000** and select a namespace to see the service map.
 
-### App traffic — http://localhost:9080
+### App traffic — http://localhost:8080
 
-The `http` Gateway listener (port 80) serves all application HTTPRoutes (`/vite/`, `/mesh-demo`, etc.).
+The `http` Gateway listener (port 8080) serves all application HTTPRoutes (`/vite/`, `/mesh-demo`, etc.).
 
 ---
 
@@ -206,9 +206,9 @@ kubectl get pods -n envoy-gateway-system
 kubectl get gateway eg -n envoy-gateway-system \
   -o jsonpath='{range .spec.listeners[*]}{.name}: {.port}{"\n"}{end}'
 # expected:
-# http: 80
-# hubble: 8080
-# argocd: 9090
+# http: 8080
+# hubble: 12000
+# argocd: 9080
 ```
 
 ---

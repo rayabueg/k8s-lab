@@ -48,16 +48,18 @@ kubectl annotate application <name> -n argocd argocd.argoproj.io/refresh=normal 
 ```bash
 # Start if not already running (background terminal)
 export KUBECONFIG=~/.kube/lima-k8s-lab
-kubectl port-forward svc/argocd-server -n argocd 8080:443
+kubectl port-forward -n envoy-gateway-system \
+  svc/$(kubectl get svc -n envoy-gateway-system -o name | grep 'envoy-envoy-gateway' | cut -d/ -f2) \
+  9080:9080
 ```
 
 ```bash
 # Verify it's up
-curl -sk https://localhost:8080 | grep -o '<title>[^<]*</title>'
+curl -s http://localhost:9080 | grep -o '<title>[^<]*</title>'
 # expected: <title>Argo CD</title>
 ```
 
-**Done when:** curl returns `<title>Argo CD</title>` and https://localhost:8080 is browsable.
+**Done when:** curl returns `<title>Argo CD</title>` and http://localhost:9080 is browsable.
 
 ---
 

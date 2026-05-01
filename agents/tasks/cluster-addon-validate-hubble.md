@@ -52,8 +52,8 @@ kubectl get gateway eg -n envoy-gateway-system \
 
 **Expected:**
 ```
-http: 80
-hubble: 8080
+http: 8080
+hubble: 12000
 ```
 
 ### 4. Validate the HTTPRoute
@@ -72,10 +72,10 @@ The Gateway IP (`192.168.5.15`) is on the Lima vmnet interface and is **not dire
 reachable from the Mac**. Test from inside the VM:
 
 ```bash
-# Get the NodePort for the hubble listener (port 8080)
+# Get the NodePort for the hubble listener (port 12000)
 HUBBLE_PORT=$(kubectl get svc -n envoy-gateway-system \
   -l gateway.envoyproxy.io/owning-gateway-name=eg \
-  -o jsonpath='{.items[0].spec.ports[?(@.port==8080)].nodePort}')
+  -o jsonpath='{.items[0].spec.ports[?(@.port==12000)].nodePort}')
 echo "Hubble NodePort: $HUBBLE_PORT"
 
 limactl shell k8s-lab curl -s -o /dev/null -w "hubble: %{http_code}\n" \
@@ -97,11 +97,11 @@ ssh -F ~/.lima/k8s-lab/ssh.config -N \
   lima-k8s-lab
 ```
 
-> `32091` is the NodePort for the `hubble:8080` Gateway listener. Verify with:
+> `32091` is the NodePort for the `hubble:12000` Gateway listener. Verify with:
 > ```bash
 > kubectl get svc -n envoy-gateway-system \
 >   -l gateway.envoyproxy.io/owning-gateway-name=eg \
->   -o jsonpath='{.items[0].spec.ports[?(@.port==8080)].nodePort}'
+>   -o jsonpath='{.items[0].spec.ports[?(@.port==12000)].nodePort}'
 > ```
 
 Verify from the Mac:

@@ -53,10 +53,12 @@ kubectl get nodes
 
 ```bash
 export KUBECONFIG="$HOME/.kube/lima-k8s-lab"
-kubectl -n argocd port-forward svc/argocd-server 8080:443
+kubectl port-forward -n envoy-gateway-system \
+  svc/$(kubectl get svc -n envoy-gateway-system -o name | grep 'envoy-envoy-gateway' | cut -d/ -f2) \
+  9080:9080
 ```
 
-Open `https://localhost:8080`.
+Open `http://localhost:9080`.
 
 Get the initial admin password:
 
