@@ -2,11 +2,11 @@
 
 This lab is intentionally split into three parts:
 
-- **Bootstrap (VM + Kubernetes)**: the [lima](lima) repo boots an Ubuntu VM with `kubeadm`, installs Cilium, and (optionally) installs Argo CD. It supports both **Lima** (macOS) and **Multipass** (Ubuntu/Linux).
+- **Bootstrap (VM + Kubernetes)**: the [bootstrap](bootstrap) repo boots an Ubuntu VM with `kubeadm`, installs Cilium, and (optionally) installs Argo CD. It supports both **Lima** (macOS) and **Multipass** (Ubuntu/Linux).
 - **Cluster config (infra + addons)**: the [cluster-addons](cluster-addons) repo is the source-of-truth that Argo CD syncs for cluster infrastructure — addons, gateway resources, CRDs, namespaces, etc.
 - **User-facing apps**: the [cluster-applications](cluster-applications) repo holds the Argo CD `Application` CRDs that deploy team apps onto the cluster (one repo, many clusters).
 
-Keeping these separate makes it easy to share: a colleague can bring up their own cluster from `lima/lima/` (macOS) or `lima/multipass/` (Linux), point Argo CD at a fork of `cluster-addons/` for infra, and point it at a fork of `cluster-applications/` for their own apps.
+Keeping these separate makes it easy to share: a colleague can bring up their own cluster from `bootstrap/lima/` (macOS) or `bootstrap/multipass/` (Linux), point Argo CD at a fork of `cluster-addons/` for infra, and point it at a fork of `cluster-applications/` for their own apps.
 
 ## Quick start (for a colleague)
 
@@ -25,7 +25,7 @@ git submodule update --init --recursive
 **macOS (Lima):**
 
 ```bash
-cd lima/lima
+cd bootstrap/lima
 ./rebuild-lab.sh       # create VM + provision kubeadm
 ./bootstrap-cluster.sh # kubeadm init + Cilium + ArgoCD
 ```
@@ -33,12 +33,12 @@ cd lima/lima
 **Ubuntu / Linux (Multipass):**
 
 ```bash
-cd lima/multipass
+cd bootstrap/multipass
 ./rebuild-lab.sh       # create VM + provision kubeadm
 ./bootstrap-cluster.sh # kubeadm init + Cilium + ArgoCD
 ```
 
-See [lima/README.md](lima/README.md) for full details on both options.
+See [bootstrap/README.md](bootstrap/README.md) for full details on both options.
 
 ### 2) Start the API tunnel (required for host kubectl)
 
@@ -131,7 +131,7 @@ That means updates are a 2-step process:
 
 This repo currently pins three submodules:
 
-- Bootstrap scripts: [lima/README.md](lima/README.md) (pick [`lima/`](lima/lima/) for macOS or [`multipass/`](lima/multipass/) for Linux)
+- Bootstrap scripts: [bootstrap/README.md](bootstrap/README.md) (pick [`lima/`](bootstrap/lima/) for macOS or [`multipass/`](bootstrap/multipass/) for Linux)
 - Cluster infra / GitOps state: [cluster-addons/README.md](cluster-addons/README.md)
 - User-facing apps (app-of-apps): [cluster-applications/README.md](cluster-applications/README.md)
 
