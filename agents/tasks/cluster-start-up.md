@@ -171,7 +171,7 @@ Verify all three are up:
 curl -s -o /dev/null -w "Demo-vite (8080): %{http_code}\n" http://localhost:8080/vite/
 curl -s -o /dev/null -w "ArgoCD    (9080): %{http_code}\n" http://localhost:9080/
 curl -s -o /dev/null -w "Hubble   (12000): %{http_code}\n" http://localhost:12000/
-# expected: 200, 200, 307
+# expected: 200, 307, 200
 ```
 
 ### ArgoCD UI — http://localhost:9080
