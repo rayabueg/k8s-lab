@@ -147,23 +147,20 @@ kubectl get svc -n envoy-gateway-system
 
 **Run in a dedicated terminal (leave it running):**
 
-> **Important:** Run each port as a separate `kubectl port-forward` process.
-> ArgoCD's HTTP redirect causes a TCP connection reset that will kill a combined
-> port-forward (all ports go down). With separate processes, only the affected
-> port dies and the others stay up.
+> **Note on port 9080 (ArgoCD):** ArgoCD's HTTP 307 redirect causes a TCP
+> connection reset that kills `kubectl port-forward`. Port 9080 is wrapped in
+> an auto-restart loop so it comes back within ~1 second after each reset.
+> Ports 8080 and 12000 are stable and don't need the loop.
 
 ```bash
 export KUBECONFIG=~/.kube/lima-k8s-lab
 SVC=$(kubectl get svc -n envoy-gateway-system -o name | grep 'envoy-envoy-gateway' | cut -d/ -f2)
-kubectl port-forward -n envoy-gateway-system svc/$SVC 8080:8080 &
-kubectl port-forward -n envoy-gateway-system svc/$SVC 9080:9080 &
-kubectl port-forward -n envoy-gateway-system svc/$SVC 12000:12000 &
-```
 
-If any one dies (check with `jobs`), restart just that port:
-```bash
-# e.g. restart 9080 only:
-kubectl port-forward -n envoy-gateway-system svc/$SVC 9080:9080 &
+# 8080 (demo-vite) and 12000 (hubble) — stable
+kubectl port-forward -n envoy-gateway-system svc/$SVC 8080:8080 12000:12000 &
+
+# 9080 (argocd) — auto-restart loop
+(while true; do kubectl port-forward -n envoy-gateway-system svc/$SVC 9080:9080 2>/dev/null; sleep 1; done) &
 ```
 
 Port mappings:
