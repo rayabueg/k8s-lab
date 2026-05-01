@@ -26,7 +26,7 @@ limactl list
 ## Step 1a: Resume a stopped VM
 
 ```bash
-cd ~/code/k8s-lab/lima
+cd ~/code/k8s-lab/bootstrap/lima
 ./bootstrap-cluster.sh
 ```
 
@@ -42,7 +42,7 @@ After resume, continue through Steps 2 → 3, then open the ArgoCD UI (**Step 6*
 ## Step 1b: Full rebuild (VM does not exist)
 
 ```bash
-cd ~/code/k8s-lab/lima
+cd ~/code/k8s-lab/bootstrap/lima
 
 # 1. Provision VM + containerd + kubeadm (~5-10 min)
 ./rebuild-lab.sh
