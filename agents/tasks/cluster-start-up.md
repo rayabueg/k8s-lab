@@ -147,38 +147,38 @@ kubectl get svc -n envoy-gateway-system
 
 **Run in a dedicated terminal (leave it running):**
 
-> **Note on port 9080 (ArgoCD):** ArgoCD's HTTP 307 redirect causes a TCP
-> connection reset that kills `kubectl port-forward`. Port 9080 is wrapped in
-> an auto-restart loop so it comes back within ~1 second after each reset.
-> Ports 8080 and 12000 are stable and don't need the loop.
+> **Note on port 9080 (ArgoCD):** ArgoCD runs in TLS mode and is accessed
+> directly via `svc/argocd-server:443` — bypassing Envoy Gateway entirely for
+> this port. This avoids the TCP reset caused by ArgoCD's HTTPS redirect killing
+> `kubectl port-forward`. Accept the self-signed cert warning in the browser.
 
 ```bash
 export KUBECONFIG=~/.kube/lima-k8s-lab
 SVC=$(kubectl get svc -n envoy-gateway-system -o name | grep 'envoy-envoy-gateway' | cut -d/ -f2)
 
-# 8080 (demo-vite) and 12000 (hubble) — stable
+# 8080 (demo-vite) and 12000 (hubble) — via Envoy Gateway
 kubectl port-forward -n envoy-gateway-system svc/$SVC 8080:8080 12000:12000 &
 
-# 9080 (argocd) — auto-restart loop
-(while true; do kubectl port-forward -n envoy-gateway-system svc/$SVC 9080:9080 2>/dev/null; sleep 1; done) &
+# 9080 (argocd) — directly to argocd-server TLS port
+kubectl port-forward -n argocd svc/argocd-server 9080:443 &
 ```
 
 Port mappings:
 - `8080` → Gateway `http:8080` (demo-vite UI)
-- `9080` → Gateway `argocd:9080` (ArgoCD UI)
+- `9080` → `argocd-server:443` directly (ArgoCD UI — **https://localhost:9080**)
 - `12000` → Gateway `hubble:12000` (Hubble UI)
 
 Verify all three are up:
 ```bash
 curl -s -o /dev/null -w "Demo-vite (8080): %{http_code}\n" http://localhost:8080/vite/
-curl -s -o /dev/null -w "ArgoCD    (9080): %{http_code}\n" http://localhost:9080/
+curl -sk -o /dev/null -w "ArgoCD    (9080): %{http_code}\n" https://localhost:9080/
 curl -s -o /dev/null -w "Hubble   (12000): %{http_code}\n" http://localhost:12000/
-# expected: 200, 307, 200
+# expected: 200, 200, 200
 ```
 
-### ArgoCD UI — http://localhost:9080
+### ArgoCD UI — https://localhost:9080
 
-Browse to **http://localhost:9080** (HTTP only — ArgoCD runs in insecure mode).
+Browse to **https://localhost:9080** and accept the self-signed certificate warning.
 
 Retrieve credentials:
 ```bash
@@ -186,9 +186,6 @@ Retrieve credentials:
 kubectl get secret argocd-initial-admin-secret -n argocd \
   -o jsonpath='{.data.password}' | base64 -d && echo
 ```
-
-> ArgoCD runs in insecure (HTTP) mode via the `argocd-config` addon (`server.insecure=true`).
-> Do **not** use `https://` — you will get `connection refused`.
 
 ### Hubble UI — http://localhost:12000
 
@@ -223,10 +220,10 @@ kubectl get gateway eg -n envoy-gateway-system \
 - [ ] `kubectl get nodes` → node `Ready`
 - [ ] `kubectl get pods -n kube-system` → all `Running`
 - [ ] `kubectl get applications -n argocd` → all `Synced` + `Healthy`
-- [ ] Gateway listeners: `http: 80`, `hubble: 9090`, `argocd: 8080`
-- [ ] `kubectl port-forward` running: `kubectl port-forward -n envoy-gateway-system svc/envoy-envoy-gateway-system-eg-<hash> 8080:8080 9080:80 12000:9090`
-- [ ] `curl` checks return 200/307 for all three ports
-- [ ] `curl http://localhost:8080/` → `200` (ArgoCD)
+- [ ] Gateway listeners: `http: 8080`, `hubble: 12000`, `argocd: 9080`
+- [ ] Port-forwards running: `8080:8080`, `12000:12000` (via Envoy), `9080:443` (direct to argocd-server)
+- [ ] `curl http://localhost:8080/vite/` → `200` (demo-vite)
+- [ ] `curl -sk https://localhost:9080/` → `200` (ArgoCD)
 - [ ] `curl http://localhost:12000/` → `200` (Hubble)
 - [ ] `curl http://localhost:9080/vite/` → `200` (vite UI)
 - [ ] Istio: `kubectl get pods -n istio-system` → see `cluster-addon-validate-istio.md`
