@@ -1,12 +1,12 @@
-# Kubernetes lab (Lima + Argo CD)
+# Kubernetes lab (kubeadm + Argo CD)
 
 This lab is intentionally split into three parts:
 
-- **Bootstrap (VM + Kubernetes)**: the [lima](lima) repo boots an Ubuntu VM with `kubeadm`, installs Cilium, and (optionally) installs Argo CD.
+- **Bootstrap (VM + Kubernetes)**: the [lima](lima) repo boots an Ubuntu VM with `kubeadm`, installs Cilium, and (optionally) installs Argo CD. It supports both **Lima** (macOS) and **Multipass** (Ubuntu/Linux).
 - **Cluster config (infra + addons)**: the [cluster-addons](cluster-addons) repo is the source-of-truth that Argo CD syncs for cluster infrastructure — addons, gateway resources, CRDs, namespaces, etc.
 - **User-facing apps**: the [cluster-applications](cluster-applications) repo holds the Argo CD `Application` CRDs that deploy team apps onto the cluster (one repo, many clusters).
 
-Keeping these separate makes it easy to share: a colleague can bring up their own cluster from `lima/`, point Argo CD at a fork of `cluster-addons/` for infra, and point it at a fork of `cluster-applications/` for their own apps.
+Keeping these separate makes it easy to share: a colleague can bring up their own cluster from `lima/lima/` (macOS) or `lima/multipass/` (Linux), point Argo CD at a fork of `cluster-addons/` for infra, and point it at a fork of `cluster-applications/` for their own apps.
 
 ## Quick start (for a colleague)
 
@@ -20,32 +20,47 @@ cd k8s-lab
 git submodule update --init --recursive
 ```
 
-### 1) Bootstrap the cluster with Lima
+### 1) Bootstrap the cluster
+
+**macOS (Lima):**
 
 ```bash
-cd lima
-
-# Optional: rebuild VM
-chmod +x rebuild-lab.sh
-./rebuild-lab.sh
-
-# Bootstrap Kubernetes + (optionally) Argo CD
-chmod +x bootstrap-cluster.sh
-./bootstrap-cluster.sh
+cd lima/lima
+./rebuild-lab.sh       # create VM + provision kubeadm
+./bootstrap-cluster.sh # kubeadm init + Cilium + ArgoCD
 ```
+
+**Ubuntu / Linux (Multipass):**
+
+```bash
+cd lima/multipass
+./rebuild-lab.sh       # create VM + provision kubeadm
+./bootstrap-cluster.sh # kubeadm init + Cilium + ArgoCD
+```
+
+See [lima/README.md](lima/README.md) for full details on both options.
 
 ### 2) Start the API tunnel (required for host kubectl)
 
-In a separate terminal:
+**macOS (Lima)** — in a separate terminal:
 
 ```bash
 ssh -F "$HOME/.lima/k8s-lab/ssh.config" -N -L 6443:127.0.0.1:6443 lima-k8s-lab
+export KUBECONFIG="$HOME/.kube/lima-k8s-lab"
 ```
 
-Then:
+**Ubuntu / Linux (Multipass)** — in a separate terminal:
 
 ```bash
-export KUBECONFIG="$HOME/.kube/lima-k8s-lab"
+VM_IP=$(multipass info k8s-lab --format json | python3 -c \
+  "import json,sys; print(json.load(sys.stdin)['info']['k8s-lab']['ipv4'][0])")
+ssh -N -L 6443:127.0.0.1:6443 ubuntu@$VM_IP
+export KUBECONFIG="$HOME/.kube/multipass-k8s-lab"
+```
+
+Then verify:
+
+```bash
 kubectl get nodes
 ```
 
@@ -54,7 +69,7 @@ kubectl get nodes
 All UIs are accessed via `kubectl port-forward`. Run in a dedicated terminal:
 
 ```bash
-export KUBECONFIG="$HOME/.kube/lima-k8s-lab"
+export KUBECONFIG="$HOME/.kube/lima-k8s-lab"   # or multipass-k8s-lab
 SVC=$(kubectl get svc -n envoy-gateway-system -o name | grep 'envoy-envoy-gateway' | cut -d/ -f2)
 
 # 8080 (demo-vite-ui) and 12000 (Hubble UI) — via Envoy Gateway
@@ -96,7 +111,7 @@ sed -i '' 's|https://github.com/rayabueg/cluster-applications.git|https://github
 Then apply both:
 
 ```bash
-export KUBECONFIG="$HOME/.kube/lima-k8s-lab"
+export KUBECONFIG="$HOME/.kube/lima-k8s-lab"   # or multipass-k8s-lab
 kubectl apply -f cluster-addons/bootstrap/argocd/root-app.yaml
 kubectl apply -f cluster-applications/bootstrap/argocd/root-app.yaml
 kubectl -n argocd get applications
@@ -116,7 +131,7 @@ That means updates are a 2-step process:
 
 This repo currently pins three submodules:
 
-- Bootstrap scripts: [lima/README.md](lima/README.md)
+- Bootstrap scripts: [lima/README.md](lima/README.md) (pick [`lima/`](lima/lima/) for macOS or [`multipass/`](lima/multipass/) for Linux)
 - Cluster infra / GitOps state: [cluster-addons/README.md](cluster-addons/README.md)
 - User-facing apps (app-of-apps): [cluster-applications/README.md](cluster-applications/README.md)
 
@@ -126,7 +141,7 @@ We use submodules to get **tight coupling of versions** without turning everythi
 
 - **Tight coupling (pinned versions):** the parent repo records the exact `cluster-addons/` commit SHA that the lab expects.
   Everyone who checks out the parent + runs `git submodule update` gets the same GitOps state.
-- **Separation of concerns:** bootstrap tooling (Lima VM + kubeadm) and GitOps state evolve at different speeds and often have different reviewers/owners.
+- **Separation of concerns:** bootstrap tooling (Lima/Multipass VM + kubeadm) and GitOps state evolve at different speeds and often have different reviewers/owners.
   Keeping them as separate repos reduces noise and keeps changes focused.
 - **History tracking:** content changes land as normal commits in the submodule; the parent repo only records explicit “pointer bump” commits.
   This makes it easy to audit “what changed” vs “which version we pinned” and to roll back by resetting the submodule pointer.
