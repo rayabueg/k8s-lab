@@ -131,41 +131,47 @@ kubectl annotate application <name> -n argocd \
 
 ---
 
-## Step 6: Open SSH tunnels for browser access
+## Step 6: Open port-forwards for browser access
 
-All browser-accessible UIs are routed through the Envoy Gateway using dedicated NodePort
-listeners. Use **SSH tunnels** (not `kubectl port-forward`) — SSH tunnels are persistent
-and don't die on idle timeout.
+All browser-accessible UIs are routed through the Envoy Gateway service. Use
+`kubectl port-forward` directly to the Envoy service — this avoids NodePort
+instability across rebuilds (NodePorts are reassigned each time).
 
-NodePort mappings (stable across cluster restarts on the same cluster):
-- `30080` → Gateway `http:80` (app traffic)
-- `32091` → Gateway `hubble:8080` (Hubble UI)
-- `32305` → Gateway `argocd:9090` (ArgoCD UI)
+First, look up the Envoy service name (it includes a hash that changes on rebuild):
+
+```bash
+export KUBECONFIG=~/.kube/lima-k8s-lab
+kubectl get svc -n envoy-gateway-system
+# Look for the service named: envoy-envoy-gateway-system-eg-<hash>
+```
 
 **Run in a dedicated terminal (leave it running):**
 
 ```bash
-ssh -F ~/.lima/k8s-lab/ssh.config -N \
-  -L 8080:localhost:32305 \
-  -L 9080:localhost:30080 \
-  -L 12000:localhost:32091 \
-  lima-k8s-lab
+export KUBECONFIG=~/.kube/lima-k8s-lab
+kubectl port-forward -n envoy-gateway-system \
+  svc/$(kubectl get svc -n envoy-gateway-system -o name | grep 'envoy-envoy-gateway' | cut -d/ -f2) \
+  8080:8080 9080:80 12000:9090
 ```
 
-> If NodePorts have changed (after a full rebuild), look them up:
-> ```bash
-> export KUBECONFIG=~/.kube/lima-k8s-lab
-> kubectl get svc -n envoy-gateway-system \
->   -l gateway.envoyproxy.io/owning-gateway-name=eg \
->   -o jsonpath='{range .items[0].spec.ports[*]}{.name}: nodePort={.nodePort}{"\n"}{end}'
-> ```
+Or substitute the service name directly (e.g.):
+```bash
+kubectl port-forward -n envoy-gateway-system \
+  svc/envoy-envoy-gateway-system-eg-5391c79d \
+  8080:8080 9080:80 12000:9090
+```
+
+Port mappings:
+- `8080` → Gateway `argocd:8080` (ArgoCD UI)
+- `9080` → Gateway `http:80` (app traffic)
+- `12000` → Gateway `hubble:9090` (Hubble UI)
 
 Verify all three are up:
 ```bash
-curl -s -o /dev/null -w "ArgoCD: %{http_code}\n" http://localhost:8080/
-curl -s -o /dev/null -w "Hubble: %{http_code}\n" http://localhost:12000/
-curl -s -o /dev/null -w "vite: %{http_code}\n" http://localhost:9080/vite/
-# expected: 200 for all
+curl -s -o /dev/null -w "ArgoCD  (8080): %{http_code}\n" http://localhost:8080/
+curl -s -o /dev/null -w "App     (9080): %{http_code}\n" http://localhost:9080/
+curl -s -o /dev/null -w "Hubble (12000): %{http_code}\n" http://localhost:12000/
+# expected: 200, 200, 307
 ```
 
 ### ArgoCD UI — http://localhost:8080
@@ -211,12 +217,13 @@ kubectl get gateway eg -n envoy-gateway-system \
 
 - [ ] `limactl list` shows `k8s-lab   Running`
 - [ ] Root ArgoCD apps applied (fresh rebuild only)
-- [ ] SSH tunnel running in background terminal
+- [ ] API tunnel running: `ssh -F ~/.lima/k8s-lab/ssh.config -N -L 6443:127.0.0.1:6443 lima-k8s-lab`
 - [ ] `kubectl get nodes` → node `Ready`
 - [ ] `kubectl get pods -n kube-system` → all `Running`
 - [ ] `kubectl get applications -n argocd` → all `Synced` + `Healthy`
-- [ ] Gateway listeners: `http: 80`, `hubble: 8080`, `argocd: 9090`
-- [ ] SSH UI tunnels running: `ssh -F ~/.lima/k8s-lab/ssh.config -N -L 8080:localhost:32305 -L 9080:localhost:30080 -L 12000:localhost:32091 lima-k8s-lab`
+- [ ] Gateway listeners: `http: 80`, `hubble: 9090`, `argocd: 8080`
+- [ ] `kubectl port-forward` running: `kubectl port-forward -n envoy-gateway-system svc/envoy-envoy-gateway-system-eg-<hash> 8080:8080 9080:80 12000:9090`
+- [ ] `curl` checks return 200/307 for all three ports
 - [ ] `curl http://localhost:8080/` → `200` (ArgoCD)
 - [ ] `curl http://localhost:12000/` → `200` (Hubble)
 - [ ] `curl http://localhost:9080/vite/` → `200` (vite UI)
