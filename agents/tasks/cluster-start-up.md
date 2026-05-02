@@ -230,6 +230,46 @@ kubectl get gateway eg -n envoy-gateway-system \
 
 ---
 
+## Image-pull / bootstrap timing notes
+
+> **Applicable to fresh rebuilds and first-resume after a rebuild.**
+
+After `bootstrap-cluster.sh` completes, Cilium and ArgoCD images may still be pulling
+from the internet inside the VM. This is normal — the script exits as soon as the
+manifests are applied, not after the images are ready.
+
+**Do not immediately run the ArgoCD / pod-health checks.** Instead:
+
+1. Wait for Cilium to be fully ready (all `cilium-*` pods `Running`):
+
+   ```bash
+   export KUBECONFIG=~/.kube/lima-k8s-lab
+   kubectl rollout status daemonset/cilium -n kube-system --timeout=10m
+   ```
+
+   Expected duration after a cold start: **2–5 minutes** (image pull + startup).
+
+2. Then wait for ArgoCD:
+
+   ```bash
+   kubectl rollout status deployment/argocd-server -n argocd --timeout=10m
+   ```
+
+   Expected duration: **1–3 minutes** after Cilium is healthy.
+
+3. Only after both are `Running`, proceed to **Step 5** (verify ArgoCD applications).
+
+If `kubectl rollout status` times out, check image pull progress:
+
+```bash
+kubectl describe pod -n kube-system -l k8s-app=cilium | grep -A5 'Events:'
+kubectl describe pod -n argocd -l app.kubernetes.io/name=argocd-server | grep -A5 'Events:'
+```
+
+`Pulling image` in events is normal — wait for `Pulled` and `Started`.
+
+---
+
 ## Troubleshooting
 
 | Symptom | Fix |
@@ -242,5 +282,7 @@ kubectl get gateway eg -n envoy-gateway-system \
 | ArgoCD apps stuck `OutOfSync` | Annotate app with `argocd.argoproj.io/refresh=normal` (see Step 5) |
 | Gateway IP unreachable from host (`HTTP 000`) | Gateway IP is a VM-internal address; curl from inside VM: `limactl shell k8s-lab curl http://<ip>/hello` |
 | `kubectl` returns stale data after VM suspend/resume | Re-run `bootstrap-cluster.sh` to refresh kubeconfig |
+| Cilium / ArgoCD pods stuck in `ContainerCreating` or `Init` | Images still pulling — wait and monitor with `kubectl rollout status` (see **Image-pull / bootstrap timing notes**) |
+| ArgoCD Applications not appearing after fresh rebuild | ArgoCD server not ready yet — wait for `argocd-server` rollout before applying root apps |
 | ArgoCD UI returns `502 Bad Gateway` | Port-forward dropped — re-run Step 6 |
 | ArgoCD `admin` password unknown | `kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath='{.data.password}' \| base64 -d` |
