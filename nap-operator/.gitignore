@@ -1,0 +1,23 @@
+# Binaries
+bin/
+*.test
+*.out
+
+# Kubebuilder tool cache
+testbin/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+
+# Go
+vendor/
+
+# Local kubeconfig leftovers
+kubeconfig
+*.kubeconfig

@@ -1,0 +1,6 @@
+# Auto-generated kustomization for the CRDs in this folder.
+# `make manifests` regenerates the files under bases/.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- bases/rest.example.com_naps.yaml

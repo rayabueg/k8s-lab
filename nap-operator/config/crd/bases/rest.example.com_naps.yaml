@@ -1,0 +1,85 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.4
+  name: naps.rest.example.com
+spec:
+  group: rest.example.com
+  names:
+    kind: Nap
+    listKind: NapList
+    plural: naps
+    singular: nap
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .status.wakesAt
+      name: Wakes At
+      type: string
+    - jsonPath: .spec.duration
+      name: Duration
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Nap is the Schema for the naps API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: NapSpec defines the desired state of Nap.
+            properties:
+              duration:
+                description: |-
+                  Duration is how long the nap lasts. Must parse via Go's time.ParseDuration
+                  (e.g. "30s", "5m", "1h30m"). Required.
+                pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
+                type: string
+              message:
+                description: Message is what to log when the nap ends. If empty, a default is used.
+                type: string
+            required:
+            - duration
+            type: object
+          status:
+            description: NapStatus defines the observed state of Nap.
+            properties:
+              phase:
+                description: Phase is the current lifecycle state.
+                enum:
+                - Sleeping
+                - Awake
+                type: string
+              wakesAt:
+                description: WakesAt is the wall-clock time at which the nap is scheduled to end.
+                format: date-time
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

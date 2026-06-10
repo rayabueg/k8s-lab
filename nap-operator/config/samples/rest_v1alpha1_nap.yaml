@@ -1,0 +1,7 @@
+apiVersion: rest.example.com/v1alpha1
+kind: Nap
+metadata:
+  name: nap-sample
+spec:
+  duration: 30s
+  message: "yaaaawn — that 30 seconds flew by"
