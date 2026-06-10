@@ -4,47 +4,30 @@
 
 ## Objective
 
-Kill all stale SSH tunnels and `kubectl port-forward` processes, restart them cleanly,
-and verify all lab UIs are reachable.
+Kill stale `kubectl port-forward` processes, restart them cleanly, and verify all lab
+UIs are reachable.
 
 ---
 
-## Overview of tunnels
+## Overview
 
 | Purpose | Local port | Target |
 |---|---|---|
-| Kubernetes API | `6443` | Lima VM `127.0.0.1:6443` (via SSH) |
-| Demo apps / Envoy HTTP | `8080` | NodePort `31530` (Envoy Gateway listener `http`) |
-| Hubble UI / Envoy | `12000` | NodePort `31328` (Envoy Gateway listener `hubble`) |
-| ArgoCD UI (direct) | `9443` | `kubectl port-forward svc/argocd-server 443` |
+| Kubernetes API | `6443` | **auto-forwarded by Lima's hostagent** — nothing to start |
+| Demo apps / Envoy HTTP | `8080` | Envoy Gateway listener `http:8080` |
+| ArgoCD UI | `9080` | Envoy Gateway listener `argocd:9080` (plain HTTP — argocd-server runs `server.insecure=true`) |
+| Hubble UI | `12000` | Envoy Gateway listener `hubble:12000` |
 
-NodePorts above are for the `envoy-envoy-gateway-system-eg-*` service in `envoy-gateway-system`.
-If the Envoy service name or NodePorts have changed, re-query them first (see Step 0).
-
----
-
-## Step 0 (optional): Re-query current NodePorts
-
-Run this if you suspect the Envoy service name or NodePorts have changed since the table above was written:
-
-```bash
-kubectl get svc -n envoy-gateway-system | grep envoy-envoy
-```
-
-Look at the `PORT(S)` column:
-- `80:XXXXX` → `http` listener NodePort
-- `8080:XXXXX` → internal; the Envoy HTTP listener NodePort is the `8080` entry
-- `12000:XXXXX` → `hubble` listener NodePort
-- `9080:XXXXX` → `argocd` listener NodePort (not used here — direct kubectl pf is preferred)
-
-Update the `Step 2` commands below if the NodePorts differ.
+All three UI ports go through **one** port-forward of the Envoy Gateway service
+(`envoy-envoy-gateway-system-eg-<hash>` in `envoy-gateway-system`). No SSH tunnels are
+needed: the API is auto-forwarded by Lima, and the UI NodePorts are unstable across
+service recreations so `kubectl port-forward` to the service is preferred.
 
 ---
 
-## Step 1: Kill all existing tunnels
+## Step 1: Kill existing port-forwards
 
 ```bash
-pkill -f 'ssh.*k8s-lab' 2>/dev/null
 pkill -f 'kubectl port-forward' 2>/dev/null
 echo 'killed'
 ```
@@ -53,74 +36,51 @@ Wait 1–2 seconds before continuing.
 
 ---
 
-## Step 2: Start SSH tunnels
-
-Run each command individually (not as a single multi-line block):
+## Step 2: Verify the API forward (should already exist)
 
 ```bash
-# Kubernetes API
-nohup ssh -F '/Users/Raymond.Abueg@AlaskaAir.com/.lima/k8s-lab/ssh.config' \
-  -N -L 6443:127.0.0.1:6443 lima-k8s-lab \
-  >/tmp/ssh-api.log 2>&1 & echo 'api PID:'$!
-
-# Demo apps via Envoy (http listener → NodePort 31530)
-nohup ssh -F '/Users/Raymond.Abueg@AlaskaAir.com/.lima/k8s-lab/ssh.config' \
-  -N -L 8080:127.0.0.1:31530 lima-k8s-lab \
-  >/tmp/ssh-envoy-http.log 2>&1 & echo 'envoy-http PID:'$!
-
-# Hubble UI via Envoy (hubble listener → NodePort 31328)
-nohup ssh -F '/Users/Raymond.Abueg@AlaskaAir.com/.lima/k8s-lab/ssh.config' \
-  -N -L 12000:127.0.0.1:31328 lima-k8s-lab \
-  >/tmp/ssh-envoy-hubble.log 2>&1 & echo 'hubble PID:'$!
+lsof -nP -iTCP:6443 -sTCP:LISTEN
+# expected: a `limactl` process listening on 127.0.0.1:6443
 ```
+
+If nothing is listening, the VM is probably stopped — see `tasks/cluster-start-up.md`.
 
 ---
 
-## Step 3: Start ArgoCD port-forward
-
-`kubectl port-forward` needs the KUBECONFIG exported first:
+## Step 3: Start the UI port-forward
 
 ```bash
 export KUBECONFIG="$HOME/.kube/lima-k8s-lab"
-nohup kubectl port-forward -n argocd svc/argocd-server 9443:443 \
-  >/tmp/pf-argocd.log 2>&1 & echo 'argocd PID:'$!
+SVC=$(kubectl get svc -n envoy-gateway-system -o name | grep 'envoy-envoy-gateway' | cut -d/ -f2)
+nohup kubectl port-forward -n envoy-gateway-system "svc/$SVC" \
+  8080:8080 12000:12000 9080:9080 \
+  >/tmp/pf-envoy.log 2>&1 & echo "envoy PID:$!"
 ```
 
 ---
 
-## Step 4: Verify all tunnels are listening
+## Step 4: Verify all ports are listening
 
 ```bash
-for port in 6443 8080 12000 9443; do
+for port in 6443 8080 9080 12000; do
   count=$(lsof -i :$port 2>/dev/null | grep -c LISTEN)
   echo "port $port: $count listener(s)"
 done
 ```
 
-Expected output:
-```
-port 6443: 2 listener(s)
-port 8080: 2 listener(s)
-port 12000: 2 listener(s)
-port 9443: 2 listener(s)
-```
+Expected: every port shows at least 1 listener.
 
 ---
 
 ## Step 5: Smoke-test the UIs
 
 ```bash
-# Demo Vite UI
 curl -s -o /dev/null -w 'demo-vite-ui: %{http_code}\n' http://localhost:8080/vite/
-
-# Hubble UI
-curl -s -o /dev/null -w 'hubble-ui: %{http_code}\n' http://localhost:12000/
-
-# ArgoCD API (expect 200 or 307)
-curl -sk -o /dev/null -w 'argocd: %{http_code}\n' https://localhost:9443/
+curl -s -o /dev/null -w 'hubble-ui:    %{http_code}\n' http://localhost:12000/
+curl -s -o /dev/null -w 'argocd:       %{http_code}\n' http://localhost:9080/
 ```
 
-Expected: `200` for demo-vite-ui and hubble-ui, `200` or `307` for ArgoCD.
+Expected: `200` for all three.
 
 ---
 
@@ -128,9 +88,10 @@ Expected: `200` for demo-vite-ui and hubble-ui, `200` or `307` for ArgoCD.
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `port XXXX: 0 listener(s)` | SSH tunnel failed to start | Check `/tmp/ssh-*.log` for errors |
-| ArgoCD port-forward shows 0 | `nohup` received `KUBECONFIG=...` as command | Export `KUBECONFIG` before running `nohup kubectl...` |
+| `port XXXX: 0 listener(s)` | Port-forward failed to start | Check `/tmp/pf-envoy.log` for errors |
+| Port-forward shows 0 | `nohup` received `KUBECONFIG=...` as command | Export `KUBECONFIG` before running `nohup kubectl...` |
 | Envoy returns `502` or hangs | Envoy proxy pod not running | `kubectl get pods -n envoy-gateway-system` |
-| `curl` returns `000` (exit 7) | Port not bound — tunnel not running | Re-run Step 2 |
-| Envoy NodePort changed | Service re-created after cluster restart | Re-run Step 0 |
-| ArgoCD port-forward dies quickly | Pod restarted | Re-run Step 3; check `kubectl get pods -n argocd` |
+| `curl` returns `000` (exit 7) | Port not bound — forward not running | Re-run Step 3 |
+| Port-forward dies on its own | Envoy service was recreated (new hash) | Re-run Step 3 — `$SVC` lookup picks up the new name |
+| `connection reset` on 9080 | Talking TLS to a plain-HTTP server (or vice versa) | ArgoCD is plain HTTP via the gateway since the Gen2 migration — use `http://localhost:9080` |
+| port 6443: 0 listeners | VM stopped (Lima forward dies with it) | `limactl list`; see `tasks/cluster-start-up.md` |

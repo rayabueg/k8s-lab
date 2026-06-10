@@ -18,7 +18,8 @@ limactl stop k8s-lab
 
 - VM is stopped, disk image is preserved
 - Resume with `./bootstrap-cluster.sh` (see `tasks/cluster-start-up.md` Step 1a)
-- SSH tunnel process dies automatically; you'll need to restart it on resume
+- The Lima 6443 auto-forward dies with the VM and comes back on start; kill any
+  `kubectl port-forward` processes before stopping (`pkill -f 'kubectl port-forward'`)
 
 ---
 
@@ -36,14 +37,17 @@ limactl delete -f k8s-lab
 
 ---
 
-## Cleanup: kill the SSH tunnel
+## Cleanup: kill port-forwards (and any legacy SSH tunnel)
 
-The API tunnel (`ssh -N -L 6443:...`) is a background process. Kill it after teardown:
+The UI port-forwards are background processes. Kill them after teardown:
 
 ```bash
-# Find and kill the tunnel
-pkill -f "6443:127.0.0.1:6443" && echo "Tunnel killed" || echo "No tunnel running"
+pkill -f "kubectl port-forward" && echo "port-forwards killed" || echo "none running"
+# legacy SSH tunnel, if one was started manually:
+pkill -f "6443:127.0.0.1:6443" 2>/dev/null || true
 ```
+
+(The Lima 6443 auto-forward needs no cleanup — it dies with the VM.)
 
 ---
 
@@ -61,7 +65,7 @@ rm -f ~/.kube/lima-k8s-lab
 
 - [ ] Decide: suspend (Option A) or destroy (Option B)
 - [ ] Run `limactl stop k8s-lab` or `limactl delete -f k8s-lab`
-- [ ] Kill SSH tunnel: `pkill -f "6443:127.0.0.1:6443"`
+- [ ] Kill port-forwards: `pkill -f "kubectl port-forward"`
 - [ ] (Destroy only) Remove kubeconfig: `rm -f ~/.kube/lima-k8s-lab`
 - [ ] Verify: `limactl list` shows `Stopped` or no instance
 

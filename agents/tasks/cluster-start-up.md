@@ -26,7 +26,7 @@ limactl list
 ## Step 1a: Resume a stopped VM
 
 ```bash
-cd ~/code/k8s-lab/bootstrap/lima
+cd ~/code/personal/k8s-lab/bootstrap/lima
 ./bootstrap-cluster.sh
 ```
 
@@ -42,7 +42,7 @@ After resume, continue through Steps 2 → 3, then open the ArgoCD UI (**Step 6*
 ## Step 1b: Full rebuild (VM does not exist)
 
 ```bash
-cd ~/code/k8s-lab/bootstrap/lima
+cd ~/code/personal/k8s-lab/bootstrap/lima
 
 # 1. Provision VM + containerd + kubeadm (~5-10 min)
 ./rebuild-lab.sh
@@ -62,16 +62,21 @@ After rebuild, continue through Steps 2 → 3 → 4 → 5, then open the ArgoCD 
 
 ---
 
-## Step 2: Open the API tunnel (required for host kubectl)
+## Step 2: Verify the API is reachable (Lima auto-forwards 6443)
 
-In a **dedicated terminal** (leave it running):
+Lima's hostagent automatically forwards the cluster API to `127.0.0.1:6443` — no manual
+SSH tunnel is needed. Verify the forward exists:
+
+```bash
+lsof -nP -iTCP:6443 -sTCP:LISTEN
+# expected: a `limactl` process listening on 127.0.0.1:6443
+```
+
+**Fallback** — only if nothing is listening on 6443 (in a dedicated terminal, leave it running):
 
 ```bash
 ssh -F ~/.lima/k8s-lab/ssh.config -N -L 6443:127.0.0.1:6443 lima-k8s-lab
 ```
-
-> This tunnel forwards `127.0.0.1:6443` on your Mac to the cluster API inside the VM.
-> Without it, all `kubectl` commands will fail with `connection refused`.
 
 ---
 
@@ -102,10 +107,10 @@ You must apply it once to kick off GitOps:
 
 ```bash
 # cluster-addons root app (discovers all addons via ApplicationSet)
-kubectl apply -f ~/code/k8s-lab/cluster-addons/bootstrap/argocd/root-app.yaml
+kubectl apply -f ~/code/personal/k8s-lab/cluster-addons/bootstrap/argocd/root-app.yaml
 
 # cluster-applications root app (discovers team apps)
-kubectl apply -f ~/code/k8s-lab/cluster-applications/bootstrap/argocd/root-app.yaml
+kubectl apply -f ~/code/personal/k8s-lab/cluster-applications/bootstrap/argocd/root-app.yaml
 ```
 
 ArgoCD will immediately begin syncing all addon folders (`cert-manager`, `envoy-gateway`,
@@ -120,7 +125,13 @@ kubectl get pods -n argocd
 kubectl get applications -n argocd
 ```
 
-Expected: all ArgoCD pods `Running`, all Applications `Synced` + `Healthy`.
+Expected: all ArgoCD pods `Running`, all **16** Applications `Synced` + `Healthy`
+(11 addon apps from the `cluster-addons-k8s-lab-k8s-lab` ApplicationSet, plus
+`k8s-lab-root`, `cluster-applications`, and the 3 team apps).
+
+> **After a VM resume**, apps may show `Unknown`/`Unknown` for a couple of minutes while
+> the restarted application controller re-reconciles. Annotate a refresh (below) and wait.
+> If `Unknown` persists, see the `argocd-cm` row in Troubleshooting.
 
 If any Application is `OutOfSync` after sync completes:
 ```bash
@@ -133,52 +144,42 @@ kubectl annotate application <name> -n argocd \
 
 ## Step 6: Open port-forwards for browser access
 
-All browser-accessible UIs are routed through the Envoy Gateway service. Use
-`kubectl port-forward` directly to the Envoy service — this avoids NodePort
-instability across rebuilds (NodePorts are reassigned each time).
+All browser-accessible UIs — **including ArgoCD** — are routed through the Envoy
+Gateway service, so a single `kubectl port-forward` covers everything. (Since the
+Gen2 migration, the `argocd-config` addon runs argocd-server with
+`server.insecure: "true"` and routes it via an `HTTPRoute` on the gateway's `argocd`
+listener — the old direct-TLS forward to `svc/argocd-server:443` is obsolete.)
 
-First, look up the Envoy service name (it includes a hash that changes on rebuild):
-
-```bash
-export KUBECONFIG=~/.kube/lima-k8s-lab
-kubectl get svc -n envoy-gateway-system
-# Look for the service named: envoy-envoy-gateway-system-eg-<hash>
-```
+The Envoy service name includes a hash that changes on rebuild; it is a **NodePort**
+service (port 80 pinned to NodePort 30080 by the EnvoyProxy patch; the other
+NodePorts are reassigned on each service recreation — hence the port-forward).
 
 **Run in a dedicated terminal (leave it running):**
-
-> **Note on port 9080 (ArgoCD):** ArgoCD runs in TLS mode and is accessed
-> directly via `svc/argocd-server:443` — bypassing Envoy Gateway entirely for
-> this port. This avoids the TCP reset caused by ArgoCD's HTTPS redirect killing
-> `kubectl port-forward`. Accept the self-signed cert warning in the browser.
 
 ```bash
 export KUBECONFIG=~/.kube/lima-k8s-lab
 SVC=$(kubectl get svc -n envoy-gateway-system -o name | grep 'envoy-envoy-gateway' | cut -d/ -f2)
 
-# 8080 (demo-vite) and 12000 (hubble) — via Envoy Gateway
-kubectl port-forward -n envoy-gateway-system svc/$SVC 8080:8080 12000:12000 &
-
-# 9080 (argocd) — directly to argocd-server TLS port
-kubectl port-forward -n argocd svc/argocd-server 9080:443 &
+# one forward for all three UIs
+kubectl port-forward -n envoy-gateway-system svc/$SVC 8080:8080 12000:12000 9080:9080 &
 ```
 
-Port mappings:
-- `8080` → Gateway `http:8080` (demo-vite UI)
-- `9080` → `argocd-server:443` directly (ArgoCD UI — **https://localhost:9080**)
+Port mappings (all via the Gateway):
+- `8080` → Gateway `http:8080` (demo apps: `/vite/`, `/hello`, …)
+- `9080` → Gateway `argocd:9080` (ArgoCD UI — **http://localhost:9080**, plain HTTP)
 - `12000` → Gateway `hubble:12000` (Hubble UI)
 
 Verify all three are up:
 ```bash
 curl -s -o /dev/null -w "Demo-vite (8080): %{http_code}\n" http://localhost:8080/vite/
-curl -sk -o /dev/null -w "ArgoCD    (9080): %{http_code}\n" https://localhost:9080/
+curl -s -o /dev/null -w "ArgoCD    (9080): %{http_code}\n" http://localhost:9080/
 curl -s -o /dev/null -w "Hubble   (12000): %{http_code}\n" http://localhost:12000/
 # expected: 200, 200, 200
 ```
 
-### ArgoCD UI — https://localhost:9080
+### ArgoCD UI — http://localhost:9080
 
-Browse to **https://localhost:9080** and accept the self-signed certificate warning.
+Browse to **http://localhost:9080** (plain HTTP, no cert warning).
 
 Retrieve credentials:
 ```bash
@@ -216,16 +217,15 @@ kubectl get gateway eg -n envoy-gateway-system \
 
 - [ ] `limactl list` shows `k8s-lab   Running`
 - [ ] Root ArgoCD apps applied (fresh rebuild only)
-- [ ] API tunnel running: `ssh -F ~/.lima/k8s-lab/ssh.config -N -L 6443:127.0.0.1:6443 lima-k8s-lab`
+- [ ] API reachable: `lsof -nP -iTCP:6443 -sTCP:LISTEN` shows a `limactl` listener (Lima auto-forward)
 - [ ] `kubectl get nodes` → node `Ready`
 - [ ] `kubectl get pods -n kube-system` → all `Running`
-- [ ] `kubectl get applications -n argocd` → all `Synced` + `Healthy`
-- [ ] Gateway listeners: `http: 8080`, `hubble: 12000`, `argocd: 9080`
-- [ ] Port-forwards running: `8080:8080`, `12000:12000` (via Envoy), `9080:443` (direct to argocd-server)
+- [ ] `kubectl get applications -n argocd` → all 16 `Synced` + `Healthy`
+- [ ] Gateway listeners: `http: 8080`, `hubble: 12000`, `argocd: 9080`; Gateway `Accepted=True` and `Programmed=True`
+- [ ] Single port-forward running on the Envoy svc: `8080:8080 12000:12000 9080:9080`
 - [ ] `curl http://localhost:8080/vite/` → `200` (demo-vite)
-- [ ] `curl -sk https://localhost:9080/` → `200` (ArgoCD)
+- [ ] `curl http://localhost:9080/` → `200` (ArgoCD, plain HTTP)
 - [ ] `curl http://localhost:12000/` → `200` (Hubble)
-- [ ] `curl http://localhost:9080/vite/` → `200` (vite UI)
 - [ ] Istio: `kubectl get pods -n istio-system` → see `cluster-addon-validate-istio.md`
 
 ---
@@ -274,8 +274,11 @@ kubectl describe pod -n argocd -l app.kubernetes.io/name=argocd-server | grep -A
 
 | Symptom | Fix |
 |---|---|
-| `connection refused` to `127.0.0.1:6443` | SSH tunnel not running — run Step 2 |
+| `connection refused` to `127.0.0.1:6443` | Lima auto-forward missing — check `limactl list` shows Running; fallback SSH tunnel in Step 2 |
 | `Can't open user config file ~/.lima/k8s-lab/ssh.config` | VM not started — run Step 1a/1b |
+| ALL apps `Unknown`/`Unknown`, controller logs spam `configmap "argocd-cm" not found` | Recreate `argocd-cm` from `platform-addons/argocd-config/manifests/argocd-cm-health.yaml` **and** label it `app.kubernetes.io/part-of=argocd` (ArgoCD ignores the cm without the label) |
+| Apps stuck deleting (deletionTimestamp set) after an AppSet rename | The old AppSet was pruned and is cascade-deleting its apps; strip `resources-finalizer.argocd.argoproj.io` from each deleting app (`kubectl patch application <n> -n argocd --type merge -p '{"metadata":{"finalizers":null}}'`) so they delete WITHOUT destroying cluster resources; the new AppSet recreates them and adopts the live resources |
+| envoy-gateway app `Progressing` forever; Envoy svc is `LoadBalancer` `<pending>` despite EnvoyProxy `type: NodePort` | GatewayClass is zombie-deleting: check `kubectl get gatewayclass eg -o jsonpath='{.metadata.deletionTimestamp}'`. EG silently ignores `parametersRef` on a deleting GatewayClass. Fix: remove its finalizer, let it delete, immediately re-apply from `platform-addons/envoy-gateway/manifests/gateway/eg-gateway.yaml`. Deleting just the svc does NOT help — EG recreates it wrong until the GatewayClass is clean |
 | Node `NotReady` | Cilium not yet ready: `kubectl get pods -n kube-system -l k8s-app=cilium` |
 | ArgoCD pod `Pending` | Resources constrained — check `kubectl describe pod -n argocd` |
 | No Applications in ArgoCD after fresh rebuild | Root apps not applied — run Step 4 |

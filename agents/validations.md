@@ -33,11 +33,16 @@ kubectl get pods -A | grep -Ev 'Running|Completed'
 kubectl get applications -n argocd
 ```
 
-**Done when:** all Applications show `Synced` + `Healthy`. If any are `OutOfSync`:
+**Done when:** all Applications show `Synced` + `Healthy` (16 apps; the addon AppSet is
+`cluster-addons-k8s-lab-k8s-lab`). If any are `OutOfSync`:
 
 ```bash
 kubectl annotate application <name> -n argocd argocd.argoproj.io/refresh=normal --overwrite
 ```
+
+If **all** apps show `Unknown`/`Unknown`: verify `argocd-cm` exists **and** carries the
+`app.kubernetes.io/part-of: argocd` label — the controller is non-functional without it
+(symptom: `configmap "argocd-cm" not found` spam in `argocd-application-controller-0` logs).
 
 ---
 
@@ -45,16 +50,20 @@ kubectl annotate application <name> -n argocd argocd.argoproj.io/refresh=normal 
 
 **Agents: ensure the port-forward is running before this check.**
 
+ArgoCD is reached **through Envoy Gateway** on the `argocd` listener (port 9080, plain
+HTTP). The `argocd-config` addon sets `server.insecure: "true"` and routes
+`HTTPRoute argocd → argocd-server svc:80`. (The old direct-TLS method via
+`svc/argocd-server:443` is obsolete since the Gen2 migration re-enabled insecure mode.)
+
 ```bash
-# Start if not already running (background terminal)
-export KUBECONFIG=~/.kube/lima-k8s-lab
-kubectl port-forward -n envoy-gateway-system \
-  svc/$(kubectl get svc -n envoy-gateway-system -o name | grep 'envoy-envoy-gateway' | cut -d/ -f2) \
-  9080:9080
+# Start if not already running (background terminal) — one forward covers all UIs
+export KUBECONFIG=~/.kube/lima-k8s-lab   # or multipass-k8s-lab
+SVC=$(kubectl get svc -n envoy-gateway-system -o name | grep 'envoy-envoy-gateway' | cut -d/ -f2)
+kubectl port-forward -n envoy-gateway-system svc/$SVC 8080:8080 12000:12000 9080:9080 &
 ```
 
 ```bash
-# Verify it's up
+# Verify it's up (plain HTTP)
 curl -s http://localhost:9080 | grep -o '<title>[^<]*</title>'
 # expected: <title>Argo CD</title>
 ```
@@ -65,12 +74,33 @@ curl -s http://localhost:9080 | grep -o '<title>[^<]*</title>'
 
 ## 5. Envoy Gateway smoke test
 
-```bash
-GATEWAY_IP=$(kubectl get gateway eg -n envoy-gateway-system \
-  -o jsonpath='{.status.addresses[0].value}')
+Simplest: with the port-forward from step 4 running, smoke-test from the host:
 
-curl -s http://$GATEWAY_IP/hello   # expect: whoami response body
-curl -s http://$GATEWAY_IP/vite/   # expect: HTML page
+```bash
+curl -s -o /dev/null -w "/hello: %{http_code}\n"  http://localhost:8080/hello
+curl -s -o /dev/null -w "/vite/: %{http_code}\n"  http://localhost:8080/vite/
+curl -s -o /dev/null -w "hubble: %{http_code}\n"  http://localhost:12000/
+curl -s -o /dev/null -w "argocd: %{http_code}\n"  http://localhost:9080/
 ```
 
-**Done when:** both return HTTP 200.
+Alternative (no port-forward): the Gateway IP is VM-internal — not reachable from the host. Run the curl **inside the VM**:
+
+```bash
+# Lima (macOS)
+limactl shell k8s-lab -- bash -c '
+  GATEWAY_IP=$(kubectl get gateway eg -n envoy-gateway-system \
+    -o jsonpath="{.status.addresses[0].value}")
+  curl -s -o /dev/null -w "/hello: %{http_code}\n" http://$GATEWAY_IP/hello
+  curl -s -o /dev/null -w "/vite/: %{http_code}\n" http://$GATEWAY_IP/vite/
+'
+
+# Multipass (Linux)
+multipass exec k8s-lab -- bash -c '
+  GATEWAY_IP=$(kubectl get gateway eg -n envoy-gateway-system \
+    -o jsonpath="{.status.addresses[0].value}")
+  curl -s -o /dev/null -w "/hello: %{http_code}\n" http://$GATEWAY_IP/hello
+  curl -s -o /dev/null -w "/vite/: %{http_code}\n" http://$GATEWAY_IP/vite/
+'
+```
+
+**Done when:** both routes return `200`.
