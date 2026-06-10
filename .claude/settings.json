@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(kubectl get *)",
+      "Bash(kubectl describe *)",
+      "Bash(kubectl logs *)",
+      "Bash(kubectl rollout status *)",
+      "Bash(kubectl wait *)",
+      "Bash(kubectl top *)",
+      "Bash(kubectl api-resources *)",
+      "Bash(kubectl cluster-info)",
+      "Bash(kubectl version *)",
+      "Bash(export KUBECONFIG=*)",
+      "Bash(limactl list *)",
+      "Bash(limactl list)",
+      "Bash(curl -s *)",
+      "Bash(curl -sk *)"
+    ]
+  }
+}

@@ -4,3 +4,6 @@
 apps/demo-vite-ui/dist/
 apps/demo-vite-ui/tsconfig.tsbuildinfo
 apps/demo-vite-ui/node_modules/
+
+# Claude Code local settings (machine-specific)
+.claude/settings.local.json
