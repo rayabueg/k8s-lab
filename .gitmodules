@@ -7,3 +7,6 @@
 [submodule "cluster-applications"]
 	path = cluster-applications
 	url = https://github.com/rayabueg/cluster-applications.git
+[submodule "platform-addons"]
+	path = platform-addons
+	url = https://github.com/rayabueg/platform-addons.git
